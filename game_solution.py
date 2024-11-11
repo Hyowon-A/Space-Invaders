@@ -28,8 +28,11 @@ class game_objects:
     def reset(self, x0, y0, x1, y1):
         self.canvas.coords(self.obj, x0, y0, x1, y1)
 
-    def configure(self, color):
+    def configureColor(self, color):
         self.canvas.itemconfig(self.obj, fill=color)
+        
+    def configureText(self, txt):
+        self.canvas.itemconfig(self.obj, text=txt)
     
     def state(self, state):
         self.canvas.itemconfig(self.obj, state=state)
@@ -37,10 +40,8 @@ class game_objects:
     def getState(self):
         return self.canvas.itemcget(self.obj, 'state')
 
-class cannon(game_objects):
-    def __init__(self, canvas, x0, y0, x1, y1):
-        self.width = 50
-        self.height = 50
+class Cannon(game_objects):
+    def __init__(self, canvas):
         self.speed = 10
         """ Need to add image
         ix = Image.open("squirrelR.png")
@@ -48,14 +49,18 @@ class cannon(game_objects):
         ix = ImageTk.PhotoImage(ix)
         item = canvas.create_image(x, y, image=ix)
         """
-        item = canvas.create_rectangle(x0, y0, x1, y1, fill="yellow")
-        super(cannon, self).__init__(canvas, item)
+        item = canvas.create_rectangle(355, 750, 395, 790, fill="yellow")
+        super(Cannon, self).__init__(canvas, item)
     
-    def move(self, direction):
-        self.move_to(direction, 0)
+    def move_left(self):
+        self.move_to(-self.speed, 0)
+        
+    def move_right(self):
+        self.move_to(self.speed, 0)
 
-class razor(game_objects):
+class Razor(game_objects):
     def __init__(self, canvas, cannon):
+        self.speed = -10
         pos = cannon.get_position()
         item = canvas.create_rectangle(
             pos[0] + 20, 
@@ -64,9 +69,9 @@ class razor(game_objects):
             pos[3] - 5,  
             fill="red",
             state="hidden")
-        super(razor, self).__init__(canvas, item)
+        super(Razor, self).__init__(canvas, item)
 
-class bunker(game_objects):
+class Bunker(game_objects):
     def __init__(self, canvas, x0, y0, x1, y1):
         self.width = 125
         self.height = 50
@@ -76,7 +81,9 @@ class bunker(game_objects):
             outline="#000000",
             state="normal"
         )
-        super(bunker, self).__init__(canvas, item)
+        self.bunkerCnt = 15
+        self.cntText = canvas.create_text((x0+x1)/2, (y0+y1)/2, text=str(self.bunkerCnt), fill="white", font=('Helvetica 15 bold'))
+        super(Bunker, self).__init__(canvas, item)
 
 class alien(game_objects):
     def __init__(self, canvas, x0, y0, x1, y1):
@@ -112,13 +119,13 @@ class gameBoard(Canvas):
             height=constants.height
         )
         self.pack()
-        self.cannon = cannon(self, 355, 750, 395, 790)
-        self.razor = razor(self, self.cannon)
+        self.cannon = Cannon(self)
+        self.razor = Razor(self, self.cannon)
         self.attack = False
         self.pressedKey = [None, None]
         self.bunkers = []
         for i in range(3):
-            self.bunkers.append(bunker(self, 75+242.5*i, 600, 200+242.5*i, 650))
+            self.bunkers.append(Bunker(self, 75+242.5*i, 600, 200+242.5*i, 650))
         
         self.hitEdge = 0
         self.aliens = []
@@ -129,8 +136,8 @@ class gameBoard(Canvas):
             self.aliens.append(line)
         self.moveAlienR()
         self.projectiles = []
-        self.projectileCnt = 0
-        #self.gameLoop()
+        self.fireProjectile()
+
     
     def fire(self):
         self.razor.state("normal")
@@ -191,58 +198,56 @@ class gameBoard(Canvas):
                 if state != "hidden": 
                     self.aliens[i][j].move_to(0, 60)
     
-    # WORKING ON FIRING PROJECTILES                
-    def placeProjectile(self):
-        while self.projectileCnt < 3:
-            r = random.randint(0, 4)
-            c = random.randint(0, 7)
-            if self.aliens[r][c].getState() != 'hidden':
-                self.projectiles.append(projectile(self, self.aliens[r][c])) 
-                print(self.projectiles[0])
-                self.projectileCnt += 1
+    def fireProjectile(self):
+        # Ensure we have a maximum of 3 active projectiles on the screen
+        if len(self.projectiles) < 3:
+            # Randomly select an alien to fire a projectile
+            x = random.randint(0, 4)
+            y = random.randint(0, 7)
+            
+            # Check if the selected alien is visible (not hidden)
+            if self.aliens[x][y].getState() != 'hidden':
+                # Create a projectile from the alien and add it to the list
+                new_projectile = projectile(self, self.aliens[x][y])
+                self.projectiles.append(new_projectile)
         
-        self.fireProjectile(0)
-        #window.after(2000, self.placeProjectile)
+        # Move each projectile downwards and check for collisions or boundaries
+        for p in self.projectiles[:]:  # Use a copy of the list to modify safely
+            p.move_to(0, 10)
+            posProjectile = p.get_position()
             
-    def fireProjectile(self, i):
-        self.projectiles[i].state("normal")
-        self.projectiles[i].move_to(0, 10)
-        posProjectile = self.projectiles[i].get_position()
-        print(posProjectile)
-        if posProjectile != []: 
-            if 800 < posProjectile[1]:
-                self.projectiles[i].delete()
+            # Check if projectile is out of bounds (bottom of screen)
+            if posProjectile[1] >= constants.height:
+                p.delete()
+                self.projectiles.remove(p)
+                continue  # Skip further checks for this projectile
             
-            for _ in range(3):
-                posBunker = self.bunkers[_].get_position()
-                if posBunker[0] < posProjectile[2] < posBunker[2] and posBunker[1] < posProjectile[1] < posBunker[3]:
-                    self.projectiles[i].delete()
-                    
-            window.after(40, self.fireProjectile(i))
-            
-
-    def gameLoop(self):
-        i = 0
-        while(i < 10000):
-            if self.pressedKey[0]: # Left
-                self.cannon.move(-self.cannon.speed)
-                i += 1
-            elif self.pressedKey[1]: # Right
-                self.cannon.move(-self.cannon.speed)
-                i += 1
-            self.collisions(self.razor)
+            # Check for collision with bunkers
+            for bunker in self.bunkers:
+                posBunker = bunker.get_position()
+                if (posBunker[0] < posProjectile[2] < posBunker[2] and 
+                    posBunker[1] < posProjectile[3] < posBunker[3]):
+                    p.delete()
+                    self.projectiles.remove(p)
+                    self.updateBunkerCnt(bunker)
+                    break  # Exit bunker collision check to avoid further checks
+        
+        # Schedule the next projectile firing update
+        window.after(200, self.fireProjectile)
+    # WORKING ON DECREASING BUNKER COUNT WHEN HIT BY PROJECTILE OR RAZOR
+    def updateBunkerCnt(self, bunker):
+        bunker.bunkerCnt -= 1
+        bunker.cntText.configureText(str(self.bunkerCnt))
                 
 def keyPressed(event):
     global board 
     if event.keysym == "Left":
-        board.pressedKey[0] = 1
-        board.cannon.move_to(-10, 0)
+        board.cannon.move_left()
     elif event.keysym == "Right":
-        board.pressedKey[1] = 1
-        board.cannon.move_to(10, 0)
+        board.cannon.move_right()
     elif event.keysym == "space" and board.attack == False:
         board.attack = True
-        board.razor = razor(board, board.cannon)
+        board.razor = Razor(board, board.cannon)
         board.fire()
 
 
