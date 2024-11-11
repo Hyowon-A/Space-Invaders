@@ -128,7 +128,8 @@ class gameBoard(Canvas):
                 line.append(alien(self, 145+60*j, 20+60*i, 185+60*j, 60+60*i))
             self.aliens.append(line)
         self.moveAlienR()
-        self.placeProjectile()
+        self.projectiles = []
+        self.projectileCnt = 0
         #self.gameLoop()
     
     def fire(self):
@@ -152,9 +153,7 @@ class gameBoard(Canvas):
                         self.razor.delete()
                         self.aliens[i][j].state("hidden")
                         self.attack = False
-                
-        else:
-            window.after(40, self.fire)
+        window.after(40, self.fire)
         
     def moveAlienR(self):
         pos = self.aliens[0][7].get_position()
@@ -178,7 +177,6 @@ class gameBoard(Canvas):
                     self.aliens[i][j].move_to(-2, 0)
         if pos[0] < 15:
             self.hitEdge += 1
-            print(self.hitEdge)
             if self.hitEdge == 4:
                 self.hitEdge = 0
                 self.moveAlienDown()
@@ -195,28 +193,33 @@ class gameBoard(Canvas):
     
     # WORKING ON FIRING PROJECTILES                
     def placeProjectile(self):
-        for _ in range(3):
+        while self.projectileCnt < 3:
             r = random.randint(0, 4)
             c = random.randint(0, 7)
-            self.projectiles = []
-            self.projectiles.append(projectile(self, self.aliens[r][c]))
-        self.fireProjectile()
-        window.after(2000, self.placeProjectile)
+            if self.aliens[r][c].getState() != 'hidden':
+                self.projectiles.append(projectile(self, self.aliens[r][c])) 
+                print(self.projectiles[0])
+                self.projectileCnt += 1
+        
+        self.fireProjectile(0)
+        #window.after(2000, self.placeProjectile)
             
-    def fireProjectile(self):
-        for i in self.projectiles:
-            i.move_to(0, 10)
-            posProjectile = i.get_position()
-            if posProjectile[1] < 5:
-                i.delete()
-            for i in range(3):
-                posBunker = self.bunkers[i].get_position()
+    def fireProjectile(self, i):
+        self.projectiles[i].state("normal")
+        self.projectiles[i].move_to(0, 10)
+        posProjectile = self.projectiles[i].get_position()
+        print(posProjectile)
+        if posProjectile != []: 
+            if 800 < posProjectile[1]:
+                self.projectiles[i].delete()
+            
+            for _ in range(3):
+                posBunker = self.bunkers[_].get_position()
                 if posBunker[0] < posProjectile[2] < posBunker[2] and posBunker[1] < posProjectile[1] < posBunker[3]:
-                    i.delete()
-            else:
-                window.after(40, self.fireProjectile())
-    
-    
+                    self.projectiles[i].delete()
+                    
+            window.after(40, self.fireProjectile(i))
+            
 
     def gameLoop(self):
         i = 0
@@ -241,7 +244,6 @@ def keyPressed(event):
         board.attack = True
         board.razor = razor(board, board.cannon)
         board.fire()
-
 
 
 
