@@ -1,6 +1,6 @@
 # Space Invaders 
 
-from tkinter import Tk, Canvas, PhotoImage, Label, simpledialog, Toplevel, ttk, Radiobutton
+from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button
 import random
 from PIL import ImageTk, Image
 
@@ -83,7 +83,7 @@ class Razor(game_objects):
         super(Razor, self).__init__(canvas, item)
 
 class Bunker(game_objects):
-    def __init__(self, canvas, x0, y0, x1, y1):
+    def __init__(self, canvas, x0, y0, x1, y1, bunkerCnt):
         self.width = 125
         self.height = 50
         item = canvas.create_rectangle(
@@ -92,7 +92,7 @@ class Bunker(game_objects):
             outline="#000000",
             state="normal"
         )
-        self.bunkerCnt = 15
+        self.bunkerCnt = bunkerCnt
         self.cntText = canvas.create_text((x0+x1)/2, (y0+y1)/2, text=str(self.bunkerCnt), fill="white", font=('Helvetica 15 bold'))
         super(Bunker, self).__init__(canvas, item)
         
@@ -134,7 +134,7 @@ class projectile(game_objects):
             
 class gameBoard(Canvas):
 
-    def __init__(self, window):
+    def __init__(self, window, selectedKeys, gameLevel):
         Canvas.__init__(
             self,
             window,
@@ -143,6 +143,19 @@ class gameBoard(Canvas):
             height=constants.HEIGHT
         )
         self.pack()
+        self.selectedKeys = selectedKeys.split('_')
+        self.gameLevel = gameLevel
+        if self.gameLevel == "biginner":
+            self.alienRow = 2
+            self.alienCol = 8
+            self.projectilesNo = 2
+            self.bunkerCnt = 40
+        elif self.gameLevel == "advanced":
+            self.alienRow = 4
+            self.alienCol = 8
+            self.projectilesNo = 3
+            self.bunkerCnt = 30
+            
         self.score = 0
         self.scoreText = self.create_text(75, 40, text=("score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
         self.cannon = Cannon(self)
@@ -152,12 +165,9 @@ class gameBoard(Canvas):
         self.attack = False
         self.bunkers = []
         for i in range(3):
-            self.bunkers.append(Bunker(self, 75+242.5*i, 700, 200+242.5*i, 750))
-        
+            self.bunkers.append(Bunker(self, 75+242.5*i, 700, 200+242.5*i, 750, self.bunkerCnt))
         self.hitEdge = 0
         self.aliens = []
-        self.alienRow = 2
-        self.alienCol = 8
         self.alienCnt = self.alienRow * self.alienCol
         for row in range(self.alienRow): 
             line = []
@@ -165,9 +175,7 @@ class gameBoard(Canvas):
                 line.append(Alien(self, 145+60*col, 75+60*row, 185+60*col, 115+60*row))
             self.aliens.append(line)
         self.projectiles = []
-        self.signIn = True
-        if self.signIn:
-            self.gameLoop()
+        self.gameLoop()
 
     def gameLoop(self):
         """Main game loop to handle movements, projectile firing, and collision checks."""
@@ -320,7 +328,7 @@ class gameBoard(Canvas):
     def fireProjectile(self):
         """Fire projectiles from 3 random aliens and check collisions"""
         # Ensure we have a maximum of 3 active projectiles on the screen
-        if len(self.projectiles) < 3:
+        if len(self.projectiles) < self.projectilesNo:
             # Randomly select an alien to fire a projectile
             x = random.randint(0, self.alienRow - 1)
             y = random.randint(0, self.alienCol - 1)
@@ -365,49 +373,115 @@ class gameBoard(Canvas):
 def keyPressed(event):
     global board 
     posCannon = board.cannon.get_position()
-    if event.keysym == "Left" and posCannon[0] > 5:
+    if event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
         board.cannonMoveLeft = True
-    elif event.keysym == "Right" and posCannon[2] < constants.WIDTH - 5:
+    elif event.keysym == board.selectedKeys[1] and posCannon[2] < constants.WIDTH - 5:
         board.cannonMoveRight = True
-    elif event.keysym == "space" and board.attack == False:
+    elif event.keysym == board.selectedKeys[2] and board.attack == False:
         board.attack = True
         board.razor = Razor(board, board.cannon)
         board.fire()
 
 def keyReleased(event):
     global board
-    if event.keysym == "Left":
+    if event.keysym == board.selectedKeys[0]:
         board.cannonMoveLeft = False
-    elif event.keysym == "Right":
+    elif event.keysym == board.selectedKeys[1]:
         board.cannonMoveRight = False
 
 def open_popup():
-        initWin = Tk()
-        initWin.geometry("750x250")
-        initWin.title("Sign in")
-        r1=Radiobutton(initWin, text="Use arrows keys to move and spacekey to fire", value=1)
-        r2=Radiobutton(initWin, text="Use A and D to move and spacekey to fire", value=2)
-        r3=Radiobutton(initWin, text="Use A and D to move and W to fire", value=3)
+    initWin = Toplevel()
+    initWin.geometry("400x550")
+    initWin.title("Sign In")
 
-        r1.pack()
-        r2.pack()
-        r3.pack()
+    ws = initWin.winfo_screenwidth()
+    hs = initWin.winfo_screenheight()
+    x = (ws / 2) - (400 / 2)
+    y = (hs / 2) - (550 / 2)
+    initWin.geometry(f"{400}x{550}+{int(x)}+{int(y)}")
+    initWin.tk.call("tk", "scaling", 4.0)
+    initWin.resizable(False, False)
 
+    # Add a label and entry for the user's name
+    padding = Label(initWin)
+    padding.pack(pady=10)
+    name_label = Label(initWin, text="Enter your name:", font='Helvetica 18 bold')
+    name_label.pack()
+    name_entry = ttk.Entry(initWin)
+    name_entry.pack(pady=10)
 
-window = Tk()
-window.title("Space Invaders")
-open_popup()
-ws = window.winfo_screenwidth()  # computers screen size
-hs = window.winfo_screenheight()
-x = (ws / 2) - (constants.WIDTH / 2)  # calculate center
-y = (hs / 2) - (constants.HEIGHT / 2)
-window.geometry(
-    "%dx%d+%d+%d" % (constants.WIDTH, constants.HEIGHT, x, y)
-)  # show the window at the middle of the screen
-window.resizable(False, False)
-window.tk.call("tk", "scaling", 4.0)
-window.bind("<KeyPress>", keyPressed)
-window.bind("<KeyRelease>", keyReleased)
+    # Add radio buttons for key options
+    padding = Label(initWin)
+    padding.pack(pady=10)
+    key_option = Label(initWin, text="Choose control keys:", font='Helvetica 18 bold')
+    key_option.pack(pady=10)
 
-board = gameBoard(window)
-board.mainloop()
+    movement_keys = StringVar(value="Left_Right_space")
+
+    r1 = Radiobutton(initWin, text="Use arrow keys to move, space to fire", variable=movement_keys, value="Left_Right_space")
+    r2 = Radiobutton(initWin, text="Use A/D to move, space to fire", variable=movement_keys, value="a_d_space")
+    r3 = Radiobutton(initWin, text="Use A/D to move, W to fire", variable=movement_keys, value="a_d_w")
+
+    r1.pack(anchor="w", padx=10)
+    r2.pack(anchor="w", padx=10)
+    r3.pack(anchor="w", padx=10)
+    
+    padding = Label(initWin)
+    padding.pack(pady=10)
+
+    level = StringVar(value="biginner")
+    
+    levelOption = Label(initWin, text="Choose the level: ", font='Helvetica 18 bold')
+    levelOption.pack(pady=10)
+
+    level1 = Radiobutton(initWin, text="Biginner", variable=level, value="biginner")
+    level2 = Radiobutton(initWin, text="Advanced User", variable=level, value="advanced")
+    
+    level1.pack(anchor="w", padx=10)
+    level2.pack(anchor="w", padx=10)
+    
+    # Add a button to submit and close the popup
+    def submit():
+        player_name = name_entry.get()
+        selectedKeys = movement_keys.get()
+        gameLevel = level.get()
+
+        # You can store these values or use them to modify the game controls
+        print(f"Player Name: {player_name}")
+        print(f"Selected Keys: {selectedKeys}")
+
+        # Close the popup
+        initWin.destroy()
+        start_game(player_name, selectedKeys, gameLevel)
+
+    padding = Label(initWin)
+    padding.pack(pady=10)
+    submit_button = Button(initWin, text="Start Game", command=submit, font='Helvetica 18 bold', bg="blue")
+    submit_button.pack(pady=20)
+
+def start_game(player_name, selected_keys, gameLevel):
+    global board
+    
+    # Initialize main game window and center it on the screen
+    window = Tk()
+    window.title("Space Invaders")
+
+    # Center the game window on the screen
+    ws = window.winfo_screenwidth()
+    hs = window.winfo_screenheight()
+    x = (ws / 2) - (constants.WIDTH / 2)
+    y = (hs / 2) - (constants.HEIGHT / 2)
+    window.geometry(f"{constants.WIDTH}x{constants.HEIGHT}+{int(x)}+{int(y)}")
+    window.tk.call("tk", "scaling", 4.0)
+    window.resizable(False, False)
+
+    # Start the game board with player name and key selection
+    board = gameBoard(window, selected_keys, gameLevel)
+    window.bind("<KeyPress>", keyPressed)
+    window.bind("<KeyRelease>", keyReleased)
+    window.mainloop()
+
+root = Tk()
+root.withdraw()  # Hide main window initially
+open_popup()  # Show popup to get player details and controls
+root.mainloop()
