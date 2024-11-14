@@ -1,12 +1,12 @@
 # Space Invaders 
 
-from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button
+from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, simpledialog
 import random
 from PIL import ImageTk, Image
 
 class constants:
     WIDTH = 750
-    HEIGHT = 950
+    HEIGHT = 750
 
 class game_objects:
     def __init__(self, canvas, obj):
@@ -47,7 +47,7 @@ class Cannon(game_objects):
         ix = ImageTk.PhotoImage(ix)
         item = canvas.create_image(x, y, image=ix)
         """
-        item = canvas.create_rectangle(355, 850, 395, 890, fill="yellow")
+        item = canvas.create_rectangle(355, 650, 395, 690, fill="yellow")
         self.lives = 3
         self.lifeArray = []
         for i in range(3):
@@ -156,8 +156,11 @@ class gameBoard(Canvas):
             self.projectilesNo = 3
             self.bunkerCnt = 30
             
+        self.menu = False
         self.score = 0
-        self.scoreText = self.create_text(75, 40, text=("score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
+        self.scoreText = self.create_text(constants.WIDTH / 2, 40, text=("Score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
+        self.round = 0
+        self.roundText = self.create_text(80, 40, text=("Round: "+ str(self.round)), fill="white", font="Hevetica 25 bold")
         self.cannon = Cannon(self)
         self.cannonMoveLeft = False
         self.cannonMoveRight = False
@@ -165,7 +168,7 @@ class gameBoard(Canvas):
         self.attack = False
         self.bunkers = []
         for i in range(3):
-            self.bunkers.append(Bunker(self, 75+242.5*i, 700, 200+242.5*i, 750, self.bunkerCnt))
+            self.bunkers.append(Bunker(self, 75+242.5*i, 500, 200+242.5*i, 550, self.bunkerCnt))
         self.hitEdge = 0
         self.aliens = []
         self.alienCnt = self.alienRow * self.alienCol
@@ -199,8 +202,26 @@ class gameBoard(Canvas):
         self.fireProjectile()
 
         # Check if the game is over
-        if self.cannon.lives > 0:
+        if self.menu == True:
             # Continue the loop if the player still has lives left
+            print("Pause")
+            menu = Tk()
+            menu.title("Menu")
+            menu.geometry("600x600")
+            
+            def resume():
+                self.menu = False
+                menu.destroy()
+                self.gameLoop()
+            
+            r = Button(menu, text="Resume", command=resume)
+            r.pack()
+            save = Button(menu, text="Save")
+            save.pack()
+            leaderboard = Button(menu, text="Leaderboard")
+            leaderboard.pack()
+                
+        elif self.cannon.lives > 0:
             self.after(30, self.gameLoop)
         else:
             # Game over, end the loop, and display a message
@@ -214,7 +235,13 @@ class gameBoard(Canvas):
     
     def resetAliens(self):
         self.aliens = []  # Clear existing aliens
-        self.alienCnt = 40  # Reset alien count
+        self.alienCnt = self.alienRow * self.alienCol  # Reset alien count
+        self.round += 1     # Increase the round count
+        self.itemconfigure(self.roundText, text=("Round: " + str(self.round)))
+        self.hitEdge = 0
+        
+        if self.round != 0 and self.round % 3 == 0:
+            self.projectilesNo += 1
 
         for row in range(self.alienRow): 
             line = []
@@ -300,7 +327,7 @@ class gameBoard(Canvas):
                     self.aliens[row][col].move_to(-1, 0)
         if pos[0] < 15:
             self.hitEdge += 1
-            if self.hitEdge == 4:
+            if self.hitEdge == 2:
                 self.moveAlienDown()
                 self.hitEdge = 0
     
@@ -381,6 +408,8 @@ def keyPressed(event):
         board.attack = True
         board.razor = Razor(board, board.cannon)
         board.fire()
+    elif event.keysym == 'm':
+        board.menu = True
 
 def keyReleased(event):
     global board
@@ -443,16 +472,29 @@ def open_popup():
     # Add a button to submit and close the popup
     def submit():
         player_name = name_entry.get()
-        selectedKeys = movement_keys.get()
-        gameLevel = level.get()
+        if not player_name.strip():
+            name = Toplevel(initWin)
+            ws = name.winfo_screenwidth()
+            hs = name.winfo_screenheight()
+            x = (ws / 2) - (400 / 2)
+            y = (hs / 2) - (100 / 2)
+            name.geometry(f"{400}x{100}+{int(x)}+{int(y)}")
+            name.tk.call("tk", "scaling", 4.0)
+            name.resizable(False, False)
+            name.title("Name")
+            t = ttk.Label(name, text= "You need to enter your NAME", font=('Mistral 18 bold'))
+            t.pack(pady=35, anchor="center")
+        else:
+            selectedKeys = movement_keys.get()
+            gameLevel = level.get()
 
-        # You can store these values or use them to modify the game controls
-        print(f"Player Name: {player_name}")
-        print(f"Selected Keys: {selectedKeys}")
+            # You can store these values or use them to modify the game controls
+            print(f"Player Name: {player_name}")
+            print(f"Selected Keys: {selectedKeys}")
 
-        # Close the popup
-        initWin.destroy()
-        start_game(player_name, selectedKeys, gameLevel)
+            # Close the popup
+            initWin.destroy()
+            start_game(player_name, selectedKeys, gameLevel)
 
     padding = Label(initWin)
     padding.pack(pady=10)
