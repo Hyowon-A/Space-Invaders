@@ -1,6 +1,6 @@
 # Space Invaders 
 
-from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, simpledialog
+from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame
 import random
 from PIL import ImageTk, Image
 
@@ -134,7 +134,7 @@ class projectile(game_objects):
             
 class gameBoard(Canvas):
 
-    def __init__(self, window, selectedKeys, gameLevel):
+    def __init__(self, window, playerName, selectedKeys, gameLevel):
         Canvas.__init__(
             self,
             window,
@@ -143,6 +143,7 @@ class gameBoard(Canvas):
             height=constants.HEIGHT
         )
         self.pack()
+        self.playerName = playerName
         self.selectedKeys = selectedKeys.split('_')
         self.gameLevel = gameLevel
         if self.gameLevel == "biginner":
@@ -218,7 +219,7 @@ class gameBoard(Canvas):
             r.pack()
             save = Button(menu, text="Save")
             save.pack()
-            leaderboard = Button(menu, text="Leaderboard")
+            leaderboard = Button(menu, text="Leaderboard", command=self.openLeaderboard)
             leaderboard.pack()
                 
         elif self.cannon.lives > 0:
@@ -232,6 +233,8 @@ class gameBoard(Canvas):
                 fill="red",
                 font="Helvetica 30 bold"
             )
+            self.updateLeaderboard()
+            self.openLeaderboard()
     
     def resetAliens(self):
         self.aliens = []  # Clear existing aliens
@@ -396,7 +399,64 @@ class gameBoard(Canvas):
                         bunker.decreaseCount()
                         break  # Exit bunker collision check to avoid further checks
         # Schedule the next projectile firing update
-                
+    
+    def openLeaderboard(self):
+        lb = {}
+        with open("leaderboard.txt") as f:
+            for line in f:
+                (key, val) = line.split(':')
+                lb[key] = val.removesuffix('\n')
+
+        lbWin = Tk()
+        lbWin.title("Leaderboard")
+        ws = lbWin.winfo_screenwidth()
+        hs = lbWin.winfo_screenheight()
+        x = (ws / 2) - (400 / 2)
+        y = (hs / 2) - (400 / 2)
+        lbWin.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
+        lbWin.tk.call("tk", "scaling", 4.0)
+        lbWin.resizable(False, False)
+        title = Label(lbWin, text="Leaderboard", font='Helvetica 18 bold')
+        title.pack(anchor="center")
+        
+        separator = ttk.Separator(lbWin, orient="horizontal")
+        separator.pack(fill="x", padx=20, pady=5)
+        
+        header = Frame(lbWin)
+        header.pack(pady=5)
+        Label(header, text="Rank", font=("Arial", 14, "bold"), width=10, anchor="center").pack(side="left")
+        Label(header, text="Player", font=("Arial", 14, "bold"), width=15, anchor="center").pack(side="left")
+        Label(header, text="Score", font=("Arial", 14, "bold"), width=10, anchor="center").pack(side="left")
+        
+        colors = ["#FFD700", "#C0C0C0", "#CD7F32"]  # Top 3 colors
+        i = 0
+        for player, score in lb.items():
+            row = Frame(lbWin)
+            row.pack(pady=2)
+        
+            # Set color for top 3
+            color = colors[i] if i < 3 else "black"
+        
+            Label(row, text=f"{i + 1}", font=("Arial", 14), width=10, anchor="center", fg=color).pack(side="left")
+            Label(row, text=player, font=("Arial", 14), width=15, anchor="center", fg=color).pack(side="left")
+            Label(row, text=str(score), font=("Arial", 14), width=10, anchor="center", fg=color).pack(side="left")
+            i += 1
+      
+    def updateLeaderboard(self):
+        lb = {}
+        with open("leaderboard.txt") as f:
+            for line in f:
+                (key, val) = line.split(':')
+                lb[key] = int(val.removesuffix('\n'))
+        lb[self.playerName] = self.score
+        
+        sortedScores = sorted(lb.items(), key=lambda x:x[1], reverse=True)
+        sortedLb = dict(sortedScores)
+        
+        with open("leaderboard.txt", 'w') as f:  
+            for key, value in sortedLb.items():  
+                f.write('%s:%s\n' % (key, value))   
+        
 def keyPressed(event):
     global board 
     posCannon = board.cannon.get_position()
@@ -420,7 +480,6 @@ def keyReleased(event):
 
 def open_popup():
     initWin = Toplevel()
-    initWin.geometry("400x550")
     initWin.title("Sign In")
 
     ws = initWin.winfo_screenwidth()
@@ -518,7 +577,7 @@ def start_game(player_name, selected_keys, gameLevel):
     window.resizable(False, False)
 
     # Start the game board with player name and key selection
-    board = gameBoard(window, selected_keys, gameLevel)
+    board = gameBoard(window, player_name, selected_keys, gameLevel)
     window.bind("<KeyPress>", keyPressed)
     window.bind("<KeyRelease>", keyReleased)
     window.mainloop()
