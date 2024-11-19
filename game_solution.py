@@ -27,7 +27,7 @@ class game_objects:
         self.canvas.delete(self.obj)
 
     def reset(self, x0, y0, x1, y1):
-        self.canvas.coords(self.obj, x0, y0, x1, y1)
+        self.canvas.coords(self.obj, ((x0+x1)/2), ((y0+y1)/2))
 
     def configureColor(self, color):
         self.canvas.itemconfig(self.obj, fill=color)
@@ -43,17 +43,19 @@ class game_objects:
 
 class Cannon(game_objects):
     def __init__(self, canvas, lives):
-        self.speed = 6
-        """ Need to add image
-        ix = Image.open("squirrelR.png")
-        ix = ix.resize((100, 100))
-        ix = ImageTk.PhotoImage(ix)
-        item = canvas.create_image(x, y, image=ix)
-        """
-        item = canvas.create_rectangle(355, 650, 395, 690, fill="yellow")
+        self.width = 50
+        self.height = 50
+        self.speed = 5
+        # Load and resize the image
+        cannonImg = Image.open("cannon.png").resize((self.width, self.height), Image.Resampling.LANCZOS)
+        self.cannonImg = ImageTk.PhotoImage(master=canvas, image=cannonImg)  # Keep a reference to the image
+        item = canvas.create_image(constants.WIDTH/2, 680, image=self.cannonImg)
+        
         self.lifeArray = []
+        lifeImg = Image.open("life.png").resize((25, 25), Image.Resampling.LANCZOS)
+        self.lifeImg = ImageTk.PhotoImage(master=canvas, image=lifeImg)  # Keep a reference to the image
         for i in range(lives):
-            self.lifeArray.append(canvas.create_rectangle(600+40*i, 25, 625+40*i, 50, fill="red"))
+            self.lifeArray.append(canvas.create_image(612.5+40*i, 37.5, image=self.lifeImg))
         super(Cannon, self).__init__(canvas, item)
     
     def moveLeft(self):
@@ -61,18 +63,28 @@ class Cannon(game_objects):
         
     def moveRight(self):
         self.move_to(self.speed, 0)
+        
+    def getBbox(self):
+        x, y = self.get_position()
+        x0 = x - self.width / 2
+        y0 = y - self.height / 2
+        x1 = x + self.width / 2
+        y1 = y + self.height / 2
+        bbox = [x0, y0, x1, y1]
+        return bbox
 
 class Razor(game_objects):
     def __init__(self, canvas, cannon):
         self.speed = -10
-        pos = cannon.get_position()
+        pos = cannon.getBbox()
         item = canvas.create_rectangle(
-            pos[0] + 20, 
-            pos[1] + 5,  
-            pos[2] - 20, 
-            pos[3] - 5,  
-            fill="red",
-            state="hidden")
+            pos[0] + 23, 
+            pos[1] + 7,  
+            pos[2] - 23, 
+            pos[3] - 7,  
+            fill="#66c2ff",
+            state="hidden",
+            width=0)
         super(Razor, self).__init__(canvas, item)
 
 class Bunker(game_objects):
@@ -107,28 +119,42 @@ class Bunker(game_objects):
     
     def updateCount(self, n):
         self.bunkerCnt = n
+        self.canvas.itemconfig(self.cntText, text=str(self.bunkerCnt))
 
 class Alien(game_objects):
     def __init__(self, canvas, x0, y0, x1, y1):
         self.width = 50
         self.height = 50
-        item = canvas.create_rectangle(
-            x0, y0, x1, y1,
-            fill="#FFFFFF",
-            outline="#000000",
-            state="normal"
-        )
-        super(Alien, self).__init__(canvas, item)
+        # Load and resize the image
+        alienImg = Image.open("alien1.png").resize((self.width, self.height), Image.Resampling.LANCZOS)
+        self.alienImg = ImageTk.PhotoImage(master=canvas, image=alienImg)  # Keep a reference to the image
         
+        # Create the image in the canvas
+        center_x = (x0 + x1) / 2
+        center_y = (y0 + y1) / 2
+        item = canvas.create_image(center_x, center_y, image=self.alienImg)
+        
+        super(Alien, self).__init__(canvas, item)
+    
+    def getBbox(self):
+        x, y = self.get_position()
+        x0 = x - self.width / 2
+        y0 = y - self.height / 2
+        x1 = x + self.width / 2
+        y1 = y + self.height / 2
+        bbox = [x0, y0, x1, y1]
+        return bbox
+    
 class projectile(game_objects):
     def __init__(self, canvas, alien):
-        pos = alien.get_position()
+        pos = alien.getBbox()
         item = canvas.create_rectangle(
-            pos[0] + 20, 
-            pos[1] + 5,  
-            pos[2] - 20, 
-            pos[3] - 5,  
-            fill="green",)
+            pos[0] + 23, 
+            pos[1] + 7,  
+            pos[2] - 23, 
+            pos[3] - 7,  
+            fill="#33ff33",
+            width=0)
         super(projectile, self).__init__(canvas, item)
             
 class gameBoard(Canvas):
@@ -187,35 +213,33 @@ class gameBoard(Canvas):
             self.scoreText = self.create_text(constants.WIDTH / 2, 40, text=("Score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
             self.lives = args[2]
             self.alienCnt = args[3]
-            for i in range(self.alienCnt):
-                alienPos = str(args[4][i])
-                for row in range(self.alienRow): 
-                    line = []
-                    # WORKING ON LOADING ALIENS BACK
-                    for col in range(self.alienCol):
-                        if alienPos == "0":
-                            line.append(Alien(self, 145+60*col, 75+60*row, 185+60*col, 115+60*row))
-                        else:
-                            alienPos = str(alienPos).removeprefix('[').removesuffix(']').split(', ')
-                            #print(alienPos)
-                            line.append(Alien(self, alienPos[0], alienPos[1], alienPos[2], alienPos[3]))
+            line = []
+            for i in range(self.alienRow * self.alienCol):
+                alienPos = args[4][i]
+                if alienPos == "0":
+                    alien = Alien(self, 145 + 60 * i, 75 + 60 * i, 185 + 60 * i, 115 + 60 * i)
+                    alien.state("hidden")
+                else:
+                    alienCoords = alienPos.strip("[]").split(",")
+                    x1, y1, x2, y2 = map(float, alienCoords)  # Convert to floats
+                    alien = Alien(self, x1, y1, x2, y2)
+                line.append(alien)
+                
+                if len(line) == 8:
                     self.aliens.append(line)
-                
-            for row in range(self.alienRow): 
-                line = []
-                for col in range(self.alienCol):
-                    line.append(Alien(self, 145+60*col, 75+60*row, 185+60*col, 115+60*row))
-                self.aliens.append(line)
-                
+                    line = []
+                    
             i = 0
+            bunkersCnt = args[5]
             for bunker in self.bunkers:
-                bunker.updateCount(args[5][i])
+                bunker.updateCount(bunkersCnt[i])
                 i += 1
             
-                
             self.cannon = Cannon(self, self.lives) # relocate
             cannonPos = str(args[6]).replace("[", "").replace(']', '').split(',')
-            self.cannon.reset(cannonPos[0], cannonPos[1], cannonPos[2], cannonPos[3])
+            x1, y1, x2, y2 = map(float, cannonPos)
+            self.cannon.reset(x1, y1, x2, y2)
+            print(self.cannon.get_position())
 
         self.gameLoop()
 
@@ -299,7 +323,7 @@ class gameBoard(Canvas):
     
     def moveCannon(self):
         """Move the cannon smoothly based on current key flags."""
-        pos = self.cannon.get_position()
+        pos = self.cannon.getBbox()
         if self.cannonMoveLeft and pos[0] > 5:
             self.cannon.moveLeft()
         elif self.cannonMoveRight and pos[2] < constants.WIDTH - 5:
@@ -329,7 +353,7 @@ class gameBoard(Canvas):
             for col in range(self.alienCol):
                 state = self.aliens[row][col].getState()
                 if state != "hidden": 
-                    posAlien = self.aliens[row][col].get_position()
+                    posAlien = self.aliens[row][col].getBbox()
                     if posAlien[0] < posRazor[2] < posAlien[2] and posAlien[1] < posRazor[1] < posAlien[3]:
                         self.razor.delete()
                         self.aliens[row][col].state("hidden")
@@ -343,11 +367,13 @@ class gameBoard(Canvas):
         if rightCol == -1:
             return  # no aliens left, exit the function
         
-        pos = None
         for row in range(self.alienRow):
-            pos = self.aliens[row][rightCol].get_position()
-            if pos:  # get the position of the first visible alien in the column
+            if self.aliens[row][rightCol].getState() != "hidden":
+                pos = self.aliens[row][rightCol].getBbox()
                 break
+        else:
+            return  # No visible aliens found
+        
         for row in range(self.alienRow):
             for col in range(self.alienCol):
                 state = self.aliens[row][col].getState()
@@ -361,11 +387,12 @@ class gameBoard(Canvas):
         if leftCol == -1:
             return  # no aliens left, exit the function
         
-        pos = None
         for row in range(self.alienRow):
-            pos = self.aliens[row][leftCol].get_position()
-            if pos:  # get the position of the first visible alien in the column
+            if self.aliens[row][leftCol].getState() != "hidden":
+                pos = self.aliens[row][leftCol].getBbox()
                 break
+            else:
+                return  # No visible aliens found
             
         for row in range(self.alienRow):
             for col in range(self.alienCol):
@@ -386,7 +413,7 @@ class gameBoard(Canvas):
         return -1  # if all aliens are hidden
     
     def getRightmostActiveColumn(self):
-        for col in range(7, 0, -1):  # iterate from the rightmost to leftmost columns
+        for col in range(self.alienCol - 1, -1, -1):  # iterate from the rightmost to leftmost columns
             for row in range(self.alienRow):  # check each row in the column
                 if self.aliens[row][col].getState() != "hidden":
                     return col  # return the first column with a visible alien
@@ -425,7 +452,7 @@ class gameBoard(Canvas):
                 continue  # Skip further checks for this projectile
             
             # Check for collision with cannon
-            posCannon = self.cannon.get_position()
+            posCannon = self.cannon.getBbox()
             if (posCannon[0] < posProjectile[2] < posCannon[2] and 
                 posCannon[1] < posProjectile[3] < posCannon[3]):
                 p.delete()
@@ -448,7 +475,7 @@ class gameBoard(Canvas):
         """Decrease one cannon's life if cannon is hit by projectile"""
         if self.lives > 0:
             self.lives -= 1
-            self.itemconfig(self.cannon.lifeArray[self.lives*-1+2], state='hidden')
+            self.itemconfig(self.cannon.lifeArray[self.lives], state='hidden')
             return True
         return False
 
@@ -472,7 +499,7 @@ class gameBoard(Canvas):
         with open(filename, "w") as f:
             f.write(self.playerName +'\n')
             f.write(self.gameLevel + "\n")
-            f.write(str(self.selectedKeys)+'\n')
+            f.write(self.selectedKeys[0]+'_'+self.selectedKeys[1]+'_'+self.selectedKeys[2]+'\n')
             f.write(str(self.round)+'\n')
             f.write(str(self.score)+'\n')
             f.write(str(self.lives)+'\n')
@@ -480,14 +507,14 @@ class gameBoard(Canvas):
             for row in range(self.alienRow):
                 for col in range(self.alienCol):
                     alienState = self.aliens[row][col].getState()
-                    if alienState != 'hidden':
+                    if alienState == 'hidden':
                         f.write("0\n")
                     else:
-                        alienPos = self.aliens[row][col].get_position()
-                        f.write(str(alienPos)+'\n')
+                        alienPos = self.aliens[row][col].getBbox()
+                        f.write(str(alienPos)+"\n")
             for bunker in self.bunkers:
                 f.write(str(bunker.getCount())+'\n')
-            f.write(str(self.cannon.get_position()))
+            f.write(str(self.cannon.getBbox()))
 
        
 def openLeaderboard():
@@ -535,7 +562,7 @@ def openLeaderboard():
 
 def keyPressed(event):
     global board 
-    posCannon = board.cannon.get_position()
+    posCannon = board.cannon.getBbox()
     if event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
         board.cannonMoveLeft = True
     elif event.keysym == board.selectedKeys[1] and posCannon[2] < constants.WIDTH - 5:
@@ -658,15 +685,16 @@ def open_popup():
             alienCnt = int(txt[6].removesuffix('\n'))
             aliensPos = []
             if gameLevel == "biginner":
-                alienCnt = 16
+                totalAlienCnt = 16
             else: 
-                alienCnt = 32
-            for i in range(alienCnt):
+                totalAlienCnt = 32
+            for i in range(totalAlienCnt):
                 aliensPos.append(txt[i+7].removesuffix('\n'))
             bunkersCnt = []
             for i in range(3):
-                bunkersCnt.append(int(txt[7+alienCnt].removesuffix('\n')))
-            cannonPos = txt[7+alienCnt+3].removesuffix('\n')
+                bunkersCnt.append(int(txt[7+totalAlienCnt+i].removesuffix('\n')))
+            cannonPos = txt[7+totalAlienCnt+3].removesuffix('\n')
+            initWin.destroy()
             start_game(playerName, selectedKeys, gameLevel, 
                        round, score, lives, alienCnt, aliensPos, bunkersCnt, cannonPos)
     
