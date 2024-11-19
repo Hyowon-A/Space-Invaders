@@ -1,11 +1,10 @@
 # Space Invaders 
 
-from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox
+from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox, Grid
 import random
 from PIL import ImageTk, Image
 
 import os
-import pathlib
 
 class constants:
     WIDTH = 750
@@ -181,7 +180,7 @@ class gameBoard(Canvas):
             self.alienCol = 8
             self.projectilesNo = 3
             self.bunkerCnt = 30
-        self.menu = False
+        self.menuOn = False
         self.cannonMoveLeft = False
         self.cannonMoveRight = False
         self.attack = False
@@ -265,7 +264,7 @@ class gameBoard(Canvas):
         self.fireProjectile()
 
         # Check if the game is over
-        if self.menu == True:
+        if self.menuOn == True:
             # Continue the loop if the player still has lives left
             print("Pause")
             menu = Tk()
@@ -279,14 +278,38 @@ class gameBoard(Canvas):
             menu.resizable(False, False)
             
             def resume():
-                self.menu = False
+                self.menuOn = False
                 menu.destroy()
                 self.gameLoop()
             
-            r = Button(menu, text="Resume", command=resume)
-            r.pack()
-            save = Button(menu, text="Save", command=self.save)
-            save.pack()
+            def save():
+                filename = f"{self.playerName}.txt"
+                with open(filename, "w") as f:
+                    f.write(self.playerName +'\n')
+                    f.write(self.gameLevel + "\n")
+                    f.write(self.selectedKeys[0]+'_'+self.selectedKeys[1]+'_'+self.selectedKeys[2]+'\n')
+                    f.write(str(self.round)+'\n')
+                    f.write(str(self.score)+'\n')
+                    f.write(str(self.lives)+'\n')
+                    f.write(str(self.alienCnt)+'\n')
+                    for row in range(self.alienRow):
+                        for col in range(self.alienCol):
+                            alienState = self.aliens[row][col].getState()
+                            if alienState == 'hidden':
+                                f.write("0\n")
+                            else:
+                                alienPos = self.aliens[row][col].getBbox()
+                                f.write(str(alienPos)+"\n")
+                    for bunker in self.bunkers:
+                        f.write(str(bunker.getCount())+'\n')
+                    f.write(str(self.cannon.getBbox()))
+                menu.destroy()
+                self.window.destory()
+            
+            resumeBtn = Button(menu, text="Resume", command=resume)
+            resumeBtn.pack()
+            saveBtn = Button(menu, text="Save", command=save)
+            saveBtn.pack()
             leaderboard = Button(menu, text="Leaderboard", command=openLeaderboard)
             leaderboard.pack()
                 
@@ -493,28 +516,6 @@ class gameBoard(Canvas):
         with open("leaderboard.txt", 'w') as f:  
             for key, value in sortedLb.items():  
                 f.write('%s:%s\n' % (key, value))   
-        
-    def save(self):
-        filename = f"{self.playerName}.txt"
-        with open(filename, "w") as f:
-            f.write(self.playerName +'\n')
-            f.write(self.gameLevel + "\n")
-            f.write(self.selectedKeys[0]+'_'+self.selectedKeys[1]+'_'+self.selectedKeys[2]+'\n')
-            f.write(str(self.round)+'\n')
-            f.write(str(self.score)+'\n')
-            f.write(str(self.lives)+'\n')
-            f.write(str(self.alienCnt)+'\n')
-            for row in range(self.alienRow):
-                for col in range(self.alienCol):
-                    alienState = self.aliens[row][col].getState()
-                    if alienState == 'hidden':
-                        f.write("0\n")
-                    else:
-                        alienPos = self.aliens[row][col].getBbox()
-                        f.write(str(alienPos)+"\n")
-            for bunker in self.bunkers:
-                f.write(str(bunker.getCount())+'\n')
-            f.write(str(self.cannon.getBbox()))
 
        
 def openLeaderboard():
@@ -572,7 +573,7 @@ def keyPressed(event):
         board.razor = Razor(board, board.cannon)
         board.fire()
     elif event.keysym == 'm':
-        board.menu = True
+        board.menuOn = True
 
 def keyReleased(event):
     global board
@@ -582,54 +583,45 @@ def keyReleased(event):
         board.cannonMoveRight = False
 
 def open_popup():
-    initWin = Toplevel()
+    initWin = Tk()
     initWin.title("Sign In")
 
     ws = initWin.winfo_screenwidth()
     hs = initWin.winfo_screenheight()
-    x = (ws / 2) - (400 / 2)
-    y = (hs / 2) - (750 / 2)
-    initWin.geometry(f"{400}x{750}+{int(x)}+{int(y)}")
+    x = (ws / 2) - (500 / 2)
+    y = (hs / 2) - (600 / 2)
+    initWin.geometry(f"{500}x{600}+{int(x)}+{int(y)}")
     initWin.tk.call("tk", "scaling", 4.0)
     initWin.resizable(False, False)
 
     # Add a label and entry for the user's name
-    padding = Label(initWin)
-    padding.pack(pady=10)
     name_label = Label(initWin, text="Enter your name:", font='Helvetica 18 bold')
-    name_label.pack()
     name_entry = ttk.Entry(initWin)
-    name_entry.pack(pady=10)
+    name_label.grid(row = 0, column = 0, padx = (20, 10), pady = (20, 20))
+    name_entry.grid(row = 0, column = 1, padx = 10, pady = (20, 20), sticky="W")
 
     # Add radio buttons for key options
-    padding = Label(initWin)
-    padding.pack(pady=10)
     key_option = Label(initWin, text="Choose control keys:", font='Helvetica 18 bold')
-    key_option.pack(pady=10)
-
+    #key_option.pack(pady=10)
+    key_option.grid(row = 1, column = 0, padx = (20, 3), pady = (0, 3))
+    
     movement_keys = StringVar(value="Left_Right_space")
 
     r1 = Radiobutton(initWin, text="Use arrow keys to move, space to fire", variable=movement_keys, value="Left_Right_space")
     r2 = Radiobutton(initWin, text="Use A/D to move, space to fire", variable=movement_keys, value="a_d_space")
     r3 = Radiobutton(initWin, text="Use A/D to move, W to fire", variable=movement_keys, value="a_d_w")
-
-    r1.pack(anchor="w", padx=10)
-    r2.pack(anchor="w", padx=10)
-    r3.pack(anchor="w", padx=10)
+    r1.grid(row = 1, column = 1, padx = 3, pady = 3, sticky="W")
+    r2.grid(row = 2, column = 1, padx = 3, pady = 3, sticky="W")
+    r3.grid(row = 3, column = 1, padx = 3, pady = (3, 20), sticky="W")
     
-    padding = Label(initWin)
-    padding.pack(pady=10)
-
     level = StringVar(value="biginner")
     
     levelOption = Label(initWin, text="Choose the level: ", font='Helvetica 18 bold')
-    levelOption.pack(pady=10)
-
     level1 = Radiobutton(initWin, text="Biginner", variable=level, value="biginner")
     level2 = Radiobutton(initWin, text="Advanced User", variable=level, value="advanced")
-    
-    level1.pack(anchor="w", padx=10)
-    level2.pack(anchor="w", padx=10)
+    levelOption.grid(row = 4, column = 0, padx = (20, 3), pady = (0, 3))
+    level1.grid(row = 4, column = 1, padx = 3, pady = 3, sticky="W")
+    level2.grid(row = 5, column = 1, padx = 3, pady = (3, 20), sticky="W")
     
     # Add a button to submit and close the popup
     def submit():
@@ -658,20 +650,20 @@ def open_popup():
             initWin.destroy()
             start_game(player_name, selectedKeys, gameLevel)
 
-    submit_button = Button(initWin, text="Start Game", command=submit, font='Helvetica 16 bold', bg="blue")
-    submit_button.pack(pady=10)
-    lbButton = Button(initWin, text="Leaderboard", command=openLeaderboard, font='Helvetica 16 bold', bg="blue")
-    lbButton.pack(pady=10)
+    submit_button = Button(initWin, text="Start a new game", command=submit, font='Helvetica 16 bold', bg="blue")  
+    submit_button.grid(row = 6, column = 1, padx = 3, pady = 3)
     
+    lbButton = Button(initWin, text="Leaderboard", command=openLeaderboard, font='Helvetica 16 bold', bg="blue")
+    lbButton.grid(row = 6, column=0, padx=3, pady=3)
 
     savedFiles = []
     for x in os.listdir():
-        if x.endswith(".txt") and x != "leaderboard.txt":
+        if x.endswith(".txt") and x != "leaderboard.txt" and x != "imgReference.txt":
             savedFiles.append(x)
     fileList = Listbox(initWin)
     for i in range(len(savedFiles)):
         fileList.insert(i, savedFiles[i])
-    fileList.pack(anchor="w")
+    fileList.grid(row=7, column=0, padx=(20, 0), pady=(50, 0))
     
     def load():
         with open(fileList.get(fileList.curselection())) as f:
@@ -699,7 +691,7 @@ def open_popup():
                        round, score, lives, alienCnt, aliensPos, bunkersCnt, cannonPos)
     
     loadButton = Button(initWin, text="Load saved file", command=load)
-    loadButton.pack(anchor="w")
+    loadButton.grid(row=8, column=0, padx=(20,0), pady=(10,0))
 
 def start_game(player_name, selected_keys, gameLevel, *args):
     global board
