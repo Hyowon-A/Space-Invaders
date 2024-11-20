@@ -1,7 +1,8 @@
 # Space Invaders 
 
-from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox, Grid
+from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox
 import random
+import webbrowser
 from PIL import ImageTk, Image
 
 import os
@@ -27,6 +28,9 @@ class game_objects:
 
     def reset(self, x0, y0, x1, y1):
         self.canvas.coords(self.obj, ((x0+x1)/2), ((y0+y1)/2))
+        
+    def reset(self, x, y):
+        self.canvas.coords(self.obj, x, y)
 
     def configureColor(self, color):
         self.canvas.itemconfig(self.obj, fill=color)
@@ -72,19 +76,19 @@ class Cannon(game_objects):
         bbox = [x0, y0, x1, y1]
         return bbox
 
-class Razor(game_objects):
+class Laser(game_objects):
     def __init__(self, canvas, cannon):
         self.speed = -10
         pos = cannon.getBbox()
         item = canvas.create_rectangle(
-            pos[0] + 23, 
+            pos[0] + 23,  
             pos[1] + 7,  
             pos[2] - 23, 
             pos[3] - 7,  
             fill="#66c2ff",
             state="hidden",
             width=0)
-        super(Razor, self).__init__(canvas, item)
+        super(Laser, self).__init__(canvas, item)
 
 class Bunker(game_objects):
     def __init__(self, canvas, x0, y0, x1, y1, bunkerCnt):
@@ -170,12 +174,12 @@ class gameBoard(Canvas):
         self.playerName = playerName
         self.selectedKeys = selectedKeys.split('_')
         self.gameLevel = gameLevel
-        if self.gameLevel == "biginner":
+        if self.gameLevel == "beginner":
             self.alienRow = 2
             self.alienCol = 8
             self.projectilesNo = 2
             self.bunkerCnt = 40
-        elif self.gameLevel == "advanced":
+        else:
             self.alienRow = 4
             self.alienCol = 8
             self.projectilesNo = 3
@@ -190,11 +194,13 @@ class gameBoard(Canvas):
         self.hitEdge = 0
         self.aliens = []
         self.projectiles = []
+        self.pressedKeys = set()
+        self.passingLaser = False
         
         if len(args) == 0:
             self.lives = 3
             self.cannon = Cannon(self, self.lives)
-            self.razor = Razor(self, self.cannon)
+            self.laser = Laser(self, self.cannon)
             self.score = 0
             self.scoreText = self.create_text(constants.WIDTH / 2, 40, text=("Score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
             self.round = 0
@@ -253,7 +259,7 @@ class gameBoard(Canvas):
         else:
             self.moveAlienL()
 
-        # Move existing razor if it's in play
+        # Move existing laser if it's in play
         if self.attack:
             self.fire()
 
@@ -353,21 +359,21 @@ class gameBoard(Canvas):
             self.cannon.moveRight()
     
     def fire(self):
-        """Fire razor when user press space and check collisions"""
-        self.razor.state("normal")
-        self.razor.move_to(0, -15)
-        posRazor = self.razor.get_position()
-        """Check if razor is out of bound(top of screen)"""
-        if posRazor[1] <= 0:
-            self.razor.delete()
+        """Fire laser when user press space and check collisions"""
+        self.laser.state("normal")
+        self.laser.move_to(0, -15)
+        posLaser = self.laser.get_position()
+        """Check if laser is out of bound(top of screen)"""
+        if posLaser[1] <= 0:
+            self.laser.delete()
             self.attack = False
         
         """Check for collision with bunkers"""
         for bunker in self.bunkers:
             posBunker = bunker.get_position()
             if posBunker != []:
-                if posBunker[0] < posRazor[2] < posBunker[2] and posBunker[1] < posRazor[1] < posBunker[3]:
-                    self.razor.delete()
+                if posBunker[0] < posLaser[2] < posBunker[2] and posBunker[1] < posLaser[1] < posBunker[3]:
+                    self.laser.delete()
                     bunker.decreaseCount()
                     self.attack = False
                     
@@ -377,13 +383,15 @@ class gameBoard(Canvas):
                 state = self.aliens[row][col].getState()
                 if state != "hidden": 
                     posAlien = self.aliens[row][col].getBbox()
-                    if posAlien[0] < posRazor[2] < posAlien[2] and posAlien[1] < posRazor[1] < posAlien[3]:
-                        self.razor.delete()
+                    if posAlien[0] < posLaser[2] < posAlien[2] and posAlien[1] < posLaser[1] < posAlien[3]:
                         self.aliens[row][col].state("hidden")
                         self.alienCnt -= 1
                         self.score += 100
                         self.itemconfigure(self.scoreText, text=("Score: " + str(self.score)))
-                        self.attack = False
+                        if self.passingLaser == False:
+                            self.laser.delete()
+                            self.attack = False
+
         
     def moveAlienR(self):
         rightCol = self.getRightmostActiveColumn()  # get the current rightmost active column
@@ -469,7 +477,7 @@ class gameBoard(Canvas):
             posProjectile = p.get_position()
             
             # Check if projectile is out of bounds (bottom of screen)
-            if posProjectile[1] >= constants.HEIGHT:
+            if posProjectile[3] >= constants.HEIGHT:
                 p.delete()
                 self.projectiles.remove(p)
                 continue  # Skip further checks for this projectile
@@ -480,6 +488,14 @@ class gameBoard(Canvas):
                 posCannon[1] < posProjectile[3] < posCannon[3]):
                 p.delete()
                 self.projectiles.remove(p)
+                def flash_cannon(count=6):  # Flash 3 times (hidden/normal = 6 states)
+                    if count > 0:
+                        current_state = "hidden" if count % 2 == 0 else "normal"
+                        self.cannon.state(current_state)
+                        self.after(50, flash_cannon, count - 1)  # Change every 100ms
+                flash_cannon()
+                self.cannon.reset(constants.WIDTH/2, 680)
+                print(self.cannon.get_position())
                 self.decreaseLife()
                 
             # Check for collision with bunkers
@@ -564,26 +580,61 @@ def openLeaderboard():
 def keyPressed(event):
     global board 
     posCannon = board.cannon.getBbox()
-    if event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
+    board.pressedKeys.add(event.keysym)
+
+    # Check if both 'i' and 'b' are pressed
+    if 'i' in board.pressedKeys and 'b' in board.pressedKeys:
+        for bunker in board.bunkers:
+            bunker.updateCount(300)
+    if 'p' in board.pressedKeys and 'l' in board.pressedKeys:
+        board.passingLaser = True
+    elif event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
         board.cannonMoveLeft = True
     elif event.keysym == board.selectedKeys[1] and posCannon[2] < constants.WIDTH - 5:
         board.cannonMoveRight = True
     elif event.keysym == board.selectedKeys[2] and board.attack == False:
         board.attack = True
-        board.razor = Razor(board, board.cannon)
+        board.laser = Laser(board, board.cannon)
         board.fire()
     elif event.keysym == 'm':
         board.menuOn = True
-
+    elif event.keysym == 'Escape':
+        showFakeWorkingImage()
+        
 def keyReleased(event):
     global board
+    board.pressedKeys.discard(event.keysym)
     if event.keysym == board.selectedKeys[0]:
         board.cannonMoveLeft = False
     elif event.keysym == board.selectedKeys[1]:
-        board.cannonMoveRight = False
+        board.cannonMoveRight = False        
+        
+         
+def showFakeWorkingImage():
+    # Create a new Toplevel window
+    fake_working_window = Toplevel()
+    fake_working_window.title("Working...")
+    ws = fake_working_window.winfo_screenwidth()
+    hs = fake_working_window.winfo_screenheight()
+    fake_working_window.geometry(f"{ws}x{hs}")
+    
+    fake_image_path = "fakeWorkingImage.png"  # Replace with your image path
+    fake_image = Image.open(fake_image_path)
+    # Resize the image to fit the screen dimensions, keeping the aspect ratio
+    fake_image.thumbnail((ws, hs), Image.Resampling.LANCZOS)
+
+    # Convert the image to a PhotoImage
+    fake_photo = ImageTk.PhotoImage(fake_image)
+
+    # Keep a reference to avoid garbage collection
+    fake_working_window.fake_photo = fake_photo
+
+    # Add the resized image to the window
+    fake_label = Label(fake_working_window, image=fake_photo)
+    fake_label.pack(expand=True, fill="both")
 
 def open_popup():
-    initWin = Tk()
+    initWin = Toplevel()
     initWin.title("Sign In")
 
     ws = initWin.winfo_screenwidth()
@@ -597,33 +648,33 @@ def open_popup():
     # Add a label and entry for the user's name
     name_label = Label(initWin, text="Enter your name:", font='Helvetica 18 bold')
     name_entry = ttk.Entry(initWin)
-    name_label.grid(row = 0, column = 0, padx = (20, 10), pady = (20, 20))
-    name_entry.grid(row = 0, column = 1, padx = 10, pady = (20, 20), sticky="W")
+    name_label.grid(row=0, column=0, padx=(20, 10), pady=(20, 20))
+    name_entry.grid(row=0, column=1, padx=10, pady=(20, 20), sticky="W")
 
     # Add radio buttons for key options
     key_option = Label(initWin, text="Choose control keys:", font='Helvetica 18 bold')
-    #key_option.pack(pady=10)
-    key_option.grid(row = 1, column = 0, padx = (20, 3), pady = (0, 3))
-    
-    movement_keys = StringVar(value="Left_Right_space")
+    key_option.grid(row=1, column=0, padx=(20, 3), pady=(0, 3))
+
+    movement_keys = StringVar(value="Left_Right_space")  # Set default value
 
     r1 = Radiobutton(initWin, text="Use arrow keys to move, space to fire", variable=movement_keys, value="Left_Right_space")
     r2 = Radiobutton(initWin, text="Use A/D to move, space to fire", variable=movement_keys, value="a_d_space")
     r3 = Radiobutton(initWin, text="Use A/D to move, W to fire", variable=movement_keys, value="a_d_w")
-    r1.grid(row = 1, column = 1, padx = 3, pady = 3, sticky="W")
-    r2.grid(row = 2, column = 1, padx = 3, pady = 3, sticky="W")
-    r3.grid(row = 3, column = 1, padx = 3, pady = (3, 20), sticky="W")
-    
-    level = StringVar(value="biginner")
-    
-    levelOption = Label(initWin, text="Choose the level: ", font='Helvetica 18 bold')
-    level1 = Radiobutton(initWin, text="Biginner", variable=level, value="biginner")
+    r1.grid(row=1, column=1, padx=3, pady=3, sticky="W")
+    r2.grid(row=2, column=1, padx=3, pady=3, sticky="W")
+    r3.grid(row=3, column=1, padx=3, pady=(3, 20), sticky="W")
+
+    # Add radio buttons for level selection
+    level = StringVar(value="beginner")  # Set default value
+
+    levelOption = Label(initWin, text="Choose the level:", font='Helvetica 18 bold')
+    level1 = Radiobutton(initWin, text="Beginner", variable=level, value="beginner")
     level2 = Radiobutton(initWin, text="Advanced User", variable=level, value="advanced")
-    levelOption.grid(row = 4, column = 0, padx = (20, 3), pady = (0, 3))
-    level1.grid(row = 4, column = 1, padx = 3, pady = 3, sticky="W")
-    level2.grid(row = 5, column = 1, padx = 3, pady = (3, 20), sticky="W")
-    
-    # Add a button to submit and close the popup
+    levelOption.grid(row=4, column=0, padx=(20, 3), pady=(0, 3))
+    level1.grid(row=4, column=1, padx=3, pady=3, sticky="W")
+    level2.grid(row=5, column=1, padx=3, pady=(3, 20), sticky="W")
+
+    # Submit button logic
     def submit():
         player_name = name_entry.get()
         if not player_name.strip():
@@ -639,22 +690,24 @@ def open_popup():
             t = ttk.Label(name, text= "You need to enter your NAME", font=('Mistral 18 bold'))
             t.pack(pady=35, anchor="center")
         else:
-            selectedKeys = movement_keys.get()
-            gameLevel = level.get()
+            # Retrieve the selected values
+            selected_keys = movement_keys.get()
+            game_level = level.get()
 
-            # You can store these values or use them to modify the game controls
+            # Debugging outputs
             print(f"Player Name: {player_name}")
-            print(f"Selected Keys: {selectedKeys}")
+            print(f"Selected Keys: {selected_keys}")
+            print(f"Game Level: {game_level}")
 
-            # Close the popup
+            # Close the popup and start the game
             initWin.destroy()
-            start_game(player_name, selectedKeys, gameLevel)
+            start_game(player_name, selected_keys, game_level)
 
-    submit_button = Button(initWin, text="Start a new game", command=submit, font='Helvetica 16 bold', bg="blue")  
-    submit_button.grid(row = 6, column = 1, padx = 3, pady = 3)
-    
-    lbButton = Button(initWin, text="Leaderboard", command=openLeaderboard, font='Helvetica 16 bold', bg="blue")
-    lbButton.grid(row = 6, column=0, padx=3, pady=3)
+    submit_button = Button(initWin, text="Start a new game", command=submit, font='Helvetica 16 bold')
+    submit_button.grid(row=6, column=1, padx=3, pady=3)
+
+    lbButton = Button(initWin, text="Leaderboard", command=openLeaderboard, font='Helvetica 16 bold')
+    lbButton.grid(row=6, column=0, padx=3, pady=3)
 
     savedFiles = []
     for x in os.listdir():
@@ -676,7 +729,7 @@ def open_popup():
             lives = int(txt[5].removesuffix('\n'))
             alienCnt = int(txt[6].removesuffix('\n'))
             aliensPos = []
-            if gameLevel == "biginner":
+            if gameLevel == "beginner":
                 totalAlienCnt = 16
             else: 
                 totalAlienCnt = 32
@@ -708,7 +761,7 @@ def start_game(player_name, selected_keys, gameLevel, *args):
     window.geometry(f"{constants.WIDTH}x{constants.HEIGHT}+{int(x)}+{int(y)}")
     window.tk.call("tk", "scaling", 4.0)
     window.resizable(False, False)
-
+                
     # Start the game board with player name and key selection
     if len(args) == 0:
         board = gameBoard(window, player_name, selected_keys, gameLevel)
