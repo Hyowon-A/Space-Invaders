@@ -1,11 +1,9 @@
-# Space Invaders 
+#Space Invaders
 
-from tkinter import Tk, Canvas, PhotoImage, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox
+from tkinter import Tk, Canvas, Label, Toplevel, ttk, Radiobutton, StringVar, Button, Frame, Listbox
 import random
-import webbrowser
-from PIL import ImageTk, Image
-
 import os
+from PIL import ImageTk, Image
 
 class constants:
     WIDTH = 750
@@ -17,27 +15,27 @@ class game_objects:
         self.obj = obj
 
     ##Return Position
-    def get_position(self):
+    def getPosition(self):
         return self.canvas.coords(self.obj)
 
-    def move_to(self, x, y):
+    def moveTo(self, x, y):
         self.canvas.move(self.obj, x, y)
 
     def delete(self):
         self.canvas.delete(self.obj)
 
-    def reset(self, x0, y0, x1, y1):
+    def resetBbox(self, x0, y0, x1, y1):
         self.canvas.coords(self.obj, ((x0+x1)/2), ((y0+y1)/2))
-        
-    def reset(self, x, y):
+
+    def resetCoords(self, x, y):
         self.canvas.coords(self.obj, x, y)
 
     def configureColor(self, color):
         self.canvas.itemconfig(self.obj, fill=color)
-        
+
     def configureText(self, txt):
         self.canvas.itemconfig(self.obj, text=txt)
-    
+
     def state(self, state):
         self.canvas.itemconfig(self.obj, state=state)
 
@@ -45,30 +43,27 @@ class game_objects:
         return self.canvas.itemcget(self.obj, 'state')
 
 class Cannon(game_objects):
-    def __init__(self, canvas, lives):
+    def __init__(self, canvas):
         self.width = 50
         self.height = 50
         self.speed = 5
         # Load and resize the image
-        cannonImg = Image.open("cannon.png").resize((self.width, self.height), Image.Resampling.LANCZOS)
-        self.cannonImg = ImageTk.PhotoImage(master=canvas, image=cannonImg)  # Keep a reference to the image
+        cannonImg = Image.open("cannon.png").resize((self.width, self.height),
+                                                    Image.Resampling.LANCZOS)
+        self.cannonImg = ImageTk.PhotoImage(master=canvas,
+                                            image=cannonImg)  # Keep a reference to the image
         item = canvas.create_image(constants.WIDTH/2, 680, image=self.cannonImg)
-        
-        self.lifeArray = []
-        lifeImg = Image.open("life.png").resize((25, 25), Image.Resampling.LANCZOS)
-        self.lifeImg = ImageTk.PhotoImage(master=canvas, image=lifeImg)  # Keep a reference to the image
-        for i in range(lives):
-            self.lifeArray.append(canvas.create_image(612.5+40*i, 37.5, image=self.lifeImg))
+
         super(Cannon, self).__init__(canvas, item)
-    
+
     def moveLeft(self):
-        self.move_to(-self.speed, 0)
-        
+        self.moveTo(-self.speed, 0)
+
     def moveRight(self):
-        self.move_to(self.speed, 0)
-        
+        self.moveTo(self.speed, 0)
+
     def getBbox(self):
-        x, y = self.get_position()
+        x, y = self.getPosition()
         x0 = x - self.width / 2
         y0 = y - self.height / 2
         x1 = x + self.width / 2
@@ -101,19 +96,20 @@ class Bunker(game_objects):
             state="normal"
         )
         self.bunkerCnt = bunkerCnt
-        self.cntText = canvas.create_text((x0+x1)/2, (y0+y1)/2, text=str(self.bunkerCnt), fill="white", font=('Helvetica 15 bold'))
+        self.cntText = canvas.create_text((x0+x1)/2, (y0+y1)/2, text=str(self.bunkerCnt),
+                                          fill="white", font='Helvetica 15 bold')
         super(Bunker, self).__init__(canvas, item)
-        
+
     def decreaseCount(self):
         """Decrease bunker count and update the text display."""
         if self.bunkerCnt > 0:
-            """Decrease bunker count by 1 and update the text display"""
+            #Decrease bunker count by 1 and update the text display
             self.bunkerCnt -= 1
             self.canvas.itemconfig(self.cntText, text=str(self.bunkerCnt))
         
         # Hide the bunker if count reaches zero
         if self.bunkerCnt == 0:
-            """Delete bunker and text if the count is 0"""
+            #Delete bunker and text if the count is 0
             self.delete()
             self.canvas.itemconfig(self.cntText, state="hidden")
             
@@ -140,7 +136,7 @@ class Alien(game_objects):
         super(Alien, self).__init__(canvas, item)
     
     def getBbox(self):
-        x, y = self.get_position()
+        x, y = self.getPosition()
         x0 = x - self.width / 2
         y0 = y - self.height / 2
         x1 = x + self.width / 2
@@ -148,17 +144,17 @@ class Alien(game_objects):
         bbox = [x0, y0, x1, y1]
         return bbox
     
-class projectile(game_objects):
+class Projectile(game_objects):
     def __init__(self, canvas, alien):
         pos = alien.getBbox()
         item = canvas.create_rectangle(
-            pos[0] + 23, 
-            pos[1] + 7,  
-            pos[2] - 23, 
-            pos[3] - 7,  
+            pos[0] + 23,
+            pos[1] + 7,
+            pos[2] - 23,
+            pos[3] - 7,
             fill="#33ff33",
             width=0)
-        super(projectile, self).__init__(canvas, item)
+        super(Projectile, self).__init__(canvas, item)
             
 class gameBoard(Canvas):
 
@@ -171,6 +167,15 @@ class gameBoard(Canvas):
             height=constants.HEIGHT
         )
         self.pack()
+        
+        # Load and resize the background image
+        bg = Image.open("spaceBg.jpg")
+        bg = bg.resize((constants.WIDTH, constants.HEIGHT))
+        self.bg_image = ImageTk.PhotoImage(bg)  # Store the reference to avoid garbage collection
+
+        # Add the background image to the canvas
+        self.create_image(0, 0, anchor="nw", image=self.bg_image)
+        
         self.playerName = playerName
         self.selectedKeys = selectedKeys.split('_')
         self.gameLevel = gameLevel
@@ -196,10 +201,13 @@ class gameBoard(Canvas):
         self.projectiles = []
         self.pressedKeys = set()
         self.passingLaser = False
+        self.lifeArray = []
+        lifeImg = Image.open("life.png").resize((25, 25), Image.Resampling.LANCZOS)
+        self.lifeImg = ImageTk.PhotoImage(master=self, image=lifeImg)  # Keep a reference to the image
         
         if len(args) == 0:
             self.lives = 3
-            self.cannon = Cannon(self, self.lives)
+            self.cannon = Cannon(self)
             self.laser = Laser(self, self.cannon)
             self.score = 0
             self.scoreText = self.create_text(constants.WIDTH / 2, 40, text=("Score: "+ str(self.score)), fill="white", font="Hevetica 25 bold")
@@ -243,8 +251,10 @@ class gameBoard(Canvas):
             self.cannon = Cannon(self, self.lives) # relocate
             cannonPos = str(args[6]).replace("[", "").replace(']', '').split(',')
             x1, y1, x2, y2 = map(float, cannonPos)
-            self.cannon.reset(x1, y1, x2, y2)
-            print(self.cannon.get_position())
+            self.cannon.resetBbox(x1, y1, x2, y2)
+
+        for i in range(self.lives):
+            self.lifeArray.append(self.create_image(612.5+40*i, 37.5, image=self.lifeImg))        
 
         self.gameLoop()
 
@@ -272,7 +282,6 @@ class gameBoard(Canvas):
         # Check if the game is over
         if self.menuOn == True:
             # Continue the loop if the player still has lives left
-            print("Pause")
             menu = Tk()
             menu.title("Menu")
             ws = menu.winfo_screenwidth()
@@ -310,7 +319,7 @@ class gameBoard(Canvas):
                         f.write(str(bunker.getCount())+'\n')
                     f.write(str(self.cannon.getBbox()))
                 menu.destroy()
-                self.window.destory()
+                root.destroy()
             
             resumeBtn = Button(menu, text="Resume", command=resume)
             resumeBtn.pack()
@@ -361,8 +370,8 @@ class gameBoard(Canvas):
     def fire(self):
         """Fire laser when user press space and check collisions"""
         self.laser.state("normal")
-        self.laser.move_to(0, -15)
-        posLaser = self.laser.get_position()
+        self.laser.moveTo(0, -15)
+        posLaser = self.laser.getPosition()
         """Check if laser is out of bound(top of screen)"""
         if posLaser[1] <= 0:
             self.laser.delete()
@@ -370,7 +379,7 @@ class gameBoard(Canvas):
         
         """Check for collision with bunkers"""
         for bunker in self.bunkers:
-            posBunker = bunker.get_position()
+            posBunker = bunker.getPosition()
             if posBunker != []:
                 if posBunker[0] < posLaser[2] < posBunker[2] and posBunker[1] < posLaser[1] < posBunker[3]:
                     self.laser.delete()
@@ -409,7 +418,7 @@ class gameBoard(Canvas):
             for col in range(self.alienCol):
                 state = self.aliens[row][col].getState()
                 if state != "hidden": 
-                    self.aliens[row][col].move_to(1, 0)
+                    self.aliens[row][col].moveTo(1, 0)
         if pos[2] > constants.WIDTH - 15:
             self.hitEdge += 1
             
@@ -429,7 +438,7 @@ class gameBoard(Canvas):
             for col in range(self.alienCol):
                 state = self.aliens[row][col].getState()
                 if state != "hidden": 
-                    self.aliens[row][col].move_to(-1, 0)
+                    self.aliens[row][col].moveTo(-1, 0)
         if pos[0] < 15:
             self.hitEdge += 1
             if self.hitEdge == 2:
@@ -455,7 +464,7 @@ class gameBoard(Canvas):
             for col in range(self.alienCol):
                 state = self.aliens[row][col].getState()
                 if state != "hidden": 
-                    self.aliens[row][col].move_to(0, 60)
+                    self.aliens[row][col].moveTo(0, 60)
     
     def fireProjectile(self):
         """Fire projectiles from 3 random aliens and check collisions"""
@@ -468,13 +477,13 @@ class gameBoard(Canvas):
             # Check if the selected alien is visible (not hidden)
             if self.aliens[x][y].getState() != 'hidden':
                 # Create a projectile from the alien and add it to the list
-                new_projectile = projectile(self, self.aliens[x][y])
+                new_projectile = Projectile(self, self.aliens[x][y])
                 self.projectiles.append(new_projectile)
         
         # Move each projectile downwards and check for collisions or boundaries
         for p in self.projectiles[:]:  # Use a copy of the list to modify safely
-            p.move_to(0, 3)
-            posProjectile = p.get_position()
+            p.moveTo(0, 3)
+            posProjectile = p.getPosition()
             
             # Check if projectile is out of bounds (bottom of screen)
             if posProjectile[3] >= constants.HEIGHT:
@@ -494,13 +503,12 @@ class gameBoard(Canvas):
                         self.cannon.state(current_state)
                         self.after(50, flash_cannon, count - 1)  # Change every 100ms
                 flash_cannon()
-                self.cannon.reset(constants.WIDTH/2, 680)
-                print(self.cannon.get_position())
+                self.cannon.resetCoords(constants.WIDTH/2, 680)
                 self.decreaseLife()
                 
             # Check for collision with bunkers
             for bunker in self.bunkers:
-                posBunker = bunker.get_position()
+                posBunker = bunker.getPosition()
                 if posBunker != []:
                     if (posBunker[0] < posProjectile[2] < posBunker[2] and 
                         posBunker[1] < posProjectile[3] < posBunker[3]):
@@ -511,12 +519,17 @@ class gameBoard(Canvas):
         # Schedule the next projectile firing update
 
     def decreaseLife(self):
-        """Decrease one cannon's life if cannon is hit by projectile"""
+        """Decrease a cannon's life if cannon is hit by projectile"""
         if self.lives > 0:
             self.lives -= 1
-            self.itemconfig(self.cannon.lifeArray[self.lives], state='hidden')
-            return True
-        return False
+            self.delete(self.lifeArray[self.lives])
+            self.lifeArray.pop()
+            
+    def increaseLife(self):
+        """Increase a cannon's life if cannon is hit by projectile"""
+        if self.lives < 3 and self.lives > 0:
+            self.lives += 1
+            self.lifeArray.append(self.create_image(612.5+40*(self.lives-1), 37.5, image=self.lifeImg))
 
     def updateLeaderboard(self):
         lb = {}
@@ -575,6 +588,8 @@ def openLeaderboard():
         Label(row, text=player, font=("Arial", 14), width=15, anchor="center", fg=color).pack(side="left")
         Label(row, text=str(score), font=("Arial", 14), width=10, anchor="center", fg=color).pack(side="left")
         i += 1
+        if i > 11:
+            break
       
 
 def keyPressed(event):
@@ -586,8 +601,10 @@ def keyPressed(event):
     if 'i' in board.pressedKeys and 'b' in board.pressedKeys:
         for bunker in board.bunkers:
             bunker.updateCount(300)
-    if 'p' in board.pressedKeys and 'l' in board.pressedKeys:
+    elif 'p' in board.pressedKeys and 'l' in board.pressedKeys:
         board.passingLaser = True
+    elif 'i' in board.pressedKeys and 'l' in board.pressedKeys:
+        board.increaseLife()
     elif event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
         board.cannonMoveLeft = True
     elif event.keysym == board.selectedKeys[1] and posCannon[2] < constants.WIDTH - 5:
@@ -598,7 +615,10 @@ def keyPressed(event):
         board.fire()
     elif event.keysym == 'm':
         board.menuOn = True
-    elif event.keysym == 'Escape':
+        board.cannonMoveLeft = False
+        board.cannonMoveRight = False   
+    elif event.keysym == 'Escape' or event.keysym == "B": 
+        board.menuOn = True
         showFakeWorkingImage()
         
 def keyReleased(event):
@@ -616,10 +636,12 @@ def showFakeWorkingImage():
     fake_working_window.title("Working...")
     ws = fake_working_window.winfo_screenwidth()
     hs = fake_working_window.winfo_screenheight()
-    fake_working_window.geometry(f"{ws}x{hs}")
-    
-    fake_image_path = "fakeWorkingImage.png"  # Replace with your image path
-    fake_image = Image.open(fake_image_path)
+    fake_working_window.geometry(f"{ws}x{hs-150}")
+    fake_working_window.tk.call("tk", "scaling", 4.0)
+    fake_working_window.resizable(False, False)
+
+    #fake_image_path = "fakeWorkingImage.png"  # Replace with your image path
+    fake_image = Image.open("fakeWorkingImage.png")
     # Resize the image to fit the screen dimensions, keeping the aspect ratio
     fake_image.thumbnail((ws, hs), Image.Resampling.LANCZOS)
 
@@ -750,7 +772,7 @@ def start_game(player_name, selected_keys, gameLevel, *args):
     global board
     
     # Initialize main game window and center it on the screen
-    window = Tk()
+    window = Toplevel()
     window.title("Space Invaders")
 
     # Center the game window on the screen
