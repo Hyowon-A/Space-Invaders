@@ -1,0 +1,13 @@
+andy:10002
+ANDY:2800
+Joe:2500
+dgwe:2392
+ssss:2200
+ddddd:1500
+dd:1000
+Andy:600
+des:382
+gg:200
+ddd:0
+dddd:0
+xccc:0
