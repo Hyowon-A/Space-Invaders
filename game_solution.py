@@ -1,7 +1,7 @@
 # Space Invaders
 
 from tkinter import (Tk, Canvas, Label, Toplevel, ttk,
-                     Radiobutton, StringVar, Button, Frame, Listbox)
+                     Radiobutton, StringVar, Button, Frame, Listbox, messagebox)
 import random
 import os
 from PIL import ImageTk, Image
@@ -35,6 +35,10 @@ class GameObjects:
         """Delete the object from the canvas."""
         self.canvas.delete(self.obj)
 
+    def reset(self, x0, y0, x1, y1):
+        """Center the object in the given bounding box."""
+        self.canvas.coords(self.obj, x0, y0, x1, y1)
+
     def resetBbox(self, x0, y0, x1, y1):
         """Center the object in the given bounding box."""
         self.canvas.coords(self.obj, ((x0 + x1) / 2), ((y0 + y1) / 2))
@@ -66,18 +70,15 @@ class Cannon(GameObjects):
     extends GameObjects and includes movement and bounding box utilities.
     """
 
-    def __init__(self, canvas):
+    def __init__(self, canvas, img):
         """
         Initialize the cannon, its properties, and display it on the canvas.
         """
         self.width = 50
         self.height = 50
         self.speed = 5
-        cannonImg = Image.open("cannon.png").resize(
-            (self.width, self.height), Image.Resampling.LANCZOS
-        )
         self.cannonImg = ImageTk.PhotoImage(master=canvas,
-                                            image=cannonImg)
+                                            image=img)
         item = canvas.create_image(Constants.WIDTH / 2, 650,
                                    image=self.cannonImg)
         super().__init__(canvas, item)
@@ -156,7 +157,7 @@ class Bunker(GameObjects):
             self.canvas.itemconfig(self.cntText, text=str(self.bunkerCnt))
         if self.bunkerCnt == 0:
             self.delete()
-            self.canvas.itemconfig(self.cntText, state="hidden")
+            self.canvas.delete(self.cntText)
 
     def getCount(self):
         """
@@ -184,7 +185,7 @@ class Alien(GameObjects):
     represented by an image and positioned using a bounding box.
     """
 
-    def __init__(self, canvas, x0, y0, x1, y1):
+    def __init__(self, canvas, x0, y0, x1, y1, img):
         """
         Initialize an alien at a given position.
 
@@ -195,10 +196,7 @@ class Alien(GameObjects):
         """
         self.width = 50
         self.height = 50
-        alienImg = Image.open("alien1.png").resize(
-            (self.width, self.height), Image.Resampling.LANCZOS
-        )
-        self.alienImg = ImageTk.PhotoImage(master=canvas, image=alienImg)
+        self.alienImg = ImageTk.PhotoImage(master=canvas, image=img)
         centerX = (x0 + x1) / 2
         centerY = (y0 + y1) / 2
         item = canvas.create_image(centerX, centerY, image=self.alienImg)
@@ -229,7 +227,7 @@ class Projectile(GameObjects):
         Inherits all methods from the GameObjects class.
     """
 
-    def __init__(self, canvas, alien):
+    def __init__(self, canvas):
         """
         Initializes the Projectile object.
 
@@ -237,21 +235,22 @@ class Projectile(GameObjects):
             canvas (tkinter.Canvas): The canvas for the projectile.
             alien (Alien): The alien firing the projectile.
         """
+        self.speed = 4
         # Determine the projectile's initial position
-        pos = alien.getBbox()
 
         # Create a rectangular projectile on the canvas
         item = canvas.create_rectangle(
-            pos[0] + 23,  # Adjusted projectile width
-            pos[1] + 7,   # Adjusted projectile height
-            pos[2] - 23,
-            pos[3] - 7,
+            0, 0, 0, 0,
+            state="hidden",
             fill="#33ff33",  # Projectile color
             width=0          # No border width
         )
 
         # Initialize the base GameObjects class
         super(Projectile, self).__init__(canvas, item)
+    
+    def increaseSpeed(self):
+        self.speed += 1
 
 
 class gameBoard(Canvas):
@@ -293,7 +292,7 @@ class gameBoard(Canvas):
         gameLoop(): Starts the main game loop.
     """
 
-    def __init__(self, window, playerName, selectedKeys, gameLevel, *args):
+    def __init__(self, windowIn, playerName, selectedKeys, gameLevel, *args):
         """
         Initializes the game board and its elements.
 
@@ -305,7 +304,7 @@ class gameBoard(Canvas):
             *args: Optional saved game state data.
         """
         # Initialize the Canvas
-        Canvas.__init__(self, window, bg="#000000",
+        Canvas.__init__(self, windowIn, bg="#000000",
                         width=Constants.WIDTH, height=Constants.HEIGHT)
         self.pack()
 
@@ -315,6 +314,14 @@ class gameBoard(Canvas):
         )
         self.bgImage = ImageTk.PhotoImage(bg)  # Prevent GC
         self.create_image(0, 0, anchor="nw", image=self.bgImage)
+
+        cannonImg = Image.open("cannon.png").resize(
+            (50, 50), Image.Resampling.LANCZOS
+        )
+
+        alienImg = Image.open("alien1.png").resize(
+            (50, 50), Image.Resampling.LANCZOS
+        )
 
         # Initialize player and game state variables
         self.playerName = playerName
@@ -326,6 +333,7 @@ class gameBoard(Canvas):
         self.attack = False
         self.bunkers = []
         self.aliens = []
+        self.alienSpeed = 1
         self.projectiles = []
         self.pressedKeys = set()
         self.passingLaser = False
@@ -342,6 +350,10 @@ class gameBoard(Canvas):
             self.alienCol = 8
             self.projectilesNo = 3
             self.bunkerCnt = 30
+
+        # Initialize projectiles
+        for _ in range(self.projectilesNo):
+            self.projectiles.append(Projectile(self))
 
         # Initialize bunkers
         for i in range(3):
@@ -360,7 +372,7 @@ class gameBoard(Canvas):
         # Initialize game elements
         if len(args) == 0:  # New game
             self.lives = 3
-            self.cannon = Cannon(self)
+            self.cannon = Cannon(self, cannonImg)
             self.laser = Laser(self, self.cannon)
             self.score = 0
             self.round = 0
@@ -382,7 +394,7 @@ class gameBoard(Canvas):
                 for col in range(self.alienCol):
                     line.append(
                         Alien(self, 145 + 60 * col, 75 + 60 * row,
-                              185 + 60 * col, 115 + 60 * row)
+                              185 + 60 * col, 115 + 60 * row, alienImg)
                     )
                 self.aliens.append(line)
         else:  # Load saved game state
@@ -408,13 +420,13 @@ class gameBoard(Canvas):
                 if alienPos == "0":
                     alien = Alien(
                         self, 145 + 60 * i, 75 + 60 * i, 185 + 60 * i,
-                        115 + 60 * i
+                        115 + 60 * i, alienImg
                     )
                     alien.state("hidden")
                 else:
                     alienCoords = alienPos.strip("[]").split(",")
                     x1, y1, x2, y2 = map(float, alienCoords)
-                    alien = Alien(self, x1, y1, x2, y2)
+                    alien = Alien(self, x1, y1, x2, y2, alienImg)
                 line.append(alien)
                 if len(line) == 8:
                     self.aliens.append(line)
@@ -429,15 +441,16 @@ class gameBoard(Canvas):
             cannonPos = str(args[6])
             cannonPos = cannonPos.replace("[", "").replace("]", "").split(",")
             x1, y1, x2, y2 = map(float, cannonPos)
-            self.cannon = Cannon(self)
+            self.cannon = Cannon(self, cannonImg)
             self.cannon.resetBbox(x1, y1, x2, y2)
+            
+            self.laser = Laser(self, self.cannon)
 
         # Add life indicators
         for i in range(self.lives):
             self.lifeArray.append(
                 self.create_image(612.5 + 40 * i, 37.5, image=self.lifeImg)
             )
-
         # Start the game loop
         self.gameLoop()
 
@@ -452,6 +465,38 @@ class gameBoard(Canvas):
 
         This method recursively updates the game state at regular intervals.
         """
+
+        def onClose():
+            """
+            Handles the window close event.
+            
+            This function is triggered when the user attempts to close the game window.
+            It prompts the user with a message box asking whether they want to save the game.
+            - If the user chooses 'Yes', the game state is saved before the window is closed.
+            - If the user chooses 'No', the window is closed without saving.
+            """
+            # Display a message box asking the user if they want to save the game
+            save = messagebox.askyesnocancel(message="Would you like to save the game?")
+
+            if save:
+                # User chose to save the game
+                self.save()  # Save the current game state
+                self.destroy()  # Destroy the current game instance
+                window.destroy()  # Destroy the main application window
+            elif save is False:
+                # User chose not to save the game
+                self.destroy()  # Destroy the current game instance
+                window.destroy()  # Destroy the main application window
+            else:
+                # User chose not to close the game window
+                return # Go back to the game loop
+
+        # Set up the protocol handler to intercept the window close event
+        window.protocol("WM_DELETE_WINDOW", onClose)
+
+        if not self.winfo_exists():
+            self.destroy()
+
         if self.alienCnt == 0:
             # Reset the aliens if all have been destroyed
             self.resetAliens()
@@ -475,15 +520,15 @@ class gameBoard(Canvas):
         # Check if the in-game menu is active
         if self.menuOn:
             # Pause the game and display a menu window
-            menu = Tk()
-            menu.title("Menu")
-            ws = menu.winfo_screenwidth()
-            hs = menu.winfo_screenheight()
+            self.menu = Tk()
+            self.menu.title("Menu")
+            ws = self.menu.winfo_screenwidth()
+            hs = self.menu.winfo_screenheight()
             x = (ws / 2) - (400 / 2)
             y = (hs / 2) - (400 / 2)
-            menu.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
-            menu.tk.call("tk", "scaling", 4.0)
-            menu.resizable(False, False)
+            self.menu.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
+            self.menu.tk.call("tk", "scaling", 4.0)
+            self.menu.resizable(False, False)
 
             def resume():
                 """
@@ -491,57 +536,23 @@ class gameBoard(Canvas):
                 restarting the game loop.
                 """
                 self.menuOn = False
-                menu.destroy()
+                self.menu.destroy()
                 self.gameLoop()
 
-            def save():
-                """
-                Save the current game state to a file named after the player.
-                """
-                filename = f"{self.playerName}.txt"
-                with open(filename, "w") as f:
-                    # Save player details, game level, and key configurations
-                    f.write(self.playerName + '\n')
-                    f.write(self.gameLevel + "\n")
-                    f.write('_'.join(self.selectedKeys) + '\n')
-
-                    # Save game round, score, lives, and alien count
-                    f.write(str(self.round) + '\n')
-                    f.write(str(self.score) + '\n')
-                    f.write(str(self.lives) + '\n')
-                    f.write(str(self.alienCnt) + '\n')
-
-                    # Save aliens' states and positions
-                    for row in range(self.alienRow):
-                        for col in range(self.alienCol):
-                            alienState = self.aliens[row][col].getState()
-                            if alienState == 'hidden':
-                                f.write("0\n")
-                            else:
-                                alienPos = self.aliens[row][col].getBbox()
-                                f.write(str(alienPos) + "\n")
-
-                    # Save bunker states
-                    for bunker in self.bunkers:
-                        f.write(str(bunker.getCount()) + '\n')
-
-                    # Save cannon's position
-                    f.write(str(self.cannon.getBbox()))
-                menu.destroy()
-                root.destroy()
-
             # Create buttons for menu options
-            resumeBtn = Button(menu, text="Resume", command=resume)
+            resumeBtn = Button(self.menu, text="Resume", command=resume)
             resumeBtn.pack()
-            saveBtn = Button(menu, text="Save", command=save)
+            saveBtn = Button(self.menu, text="Save", command=self.save)
             saveBtn.pack()
-            leaderboard = Button(menu, text="Leaderboard",
+            leaderboard = Button(self.menu, text="Leaderboard",
                                  command=openLeaderboard)
             leaderboard.pack()
+            
+            self.menu.protocol("WM_DELETE_WINDOW", resume)
 
         elif self.lives > 0:
             # Continue the game loop if the player has remaining lives
-            self.after(30, self.gameLoop)
+            self.after(16, self.gameLoop)
         else:
             # Game over: display the message and end the loop
             self.create_text(
@@ -552,8 +563,48 @@ class gameBoard(Canvas):
                 font="Helvetica 30 bold"
             )
             # Update the leaderboard and display it
+            if os.path.isfile(f"{self.playerName}.txt"):
+                os.remove(f"{self.playerName}.txt")
+            window.destroy()
             self.updateLeaderboard()
             openLeaderboard()
+
+    def save(self):
+        """
+        Save the current game state to a file named after the player.
+        """
+        filename = f"{self.playerName}.txt"
+        with open(filename, "w") as f:
+            # Save player details, game level, and key configurations
+            f.write(self.playerName + '\n')
+            f.write(self.gameLevel + "\n")
+            f.write('_'.join(self.selectedKeys) + '\n')
+
+            # Save game round, score, lives, and alien count
+            f.write(str(self.round) + '\n')
+            f.write(str(self.score) + '\n')
+            f.write(str(self.lives) + '\n')
+            f.write(str(self.alienCnt) + '\n')
+
+            # Save aliens' states and positions
+            for row in range(self.alienRow):
+                for col in range(self.alienCol):
+                    alienState = self.aliens[row][col].getState()
+                    if alienState == 'hidden':
+                        f.write("0\n")
+                    else:
+                        alienPos = self.aliens[row][col].getBbox()
+                        f.write(str(alienPos) + "\n")
+
+            # Save bunker states
+            for bunker in self.bunkers:
+                f.write(str(bunker.getCount()) + '\n')
+
+            # Save cannon's position
+            f.write(str(self.cannon.getBbox()))
+        if self.menuOn:
+            self.menu.destroy()
+        self.destroy()
 
     def resetAliens(self):
         """
@@ -562,7 +613,6 @@ class gameBoard(Canvas):
         - Reinitializing the alien grid
         - Updating round and game parameters
         """
-        self.aliens = []  # Clear existing aliens
         self.alienCnt = self.alienRow * self.alienCol  # Reset alien count
         self.round += 1  # Increment the round count
         self.itemconfigure(
@@ -572,19 +622,18 @@ class gameBoard(Canvas):
 
         # Increase the number of projectiles every 3 rounds
         if self.round != 0 and self.round % 3 == 0:
-            self.projectilesNo += 1
+            self.projectiles.append(Projectile(self))
+            for p in self.projectiles:
+                p.increaseSpeed()
+        elif self.round % 5 == 0:
+            self.alienSpeed += 1
 
         # Recreate aliens in their initial positions
         for row in range(self.alienRow):
-            line = []
             for col in range(self.alienCol):
-                # Position aliens in a grid formation
-                alien = Alien(
-                    self, 145 + 60 * col, 75 + 60 * row, 185 + 60 * col,
-                    115 + 60 * row
-                )
-                line.append(alien)
-            self.aliens.append(line)
+                self.aliens[row][col].resetBbox(145 + 60 * col, 75 + 60 * row,
+                                                185 + 60 * col, 115 + 60 * row)
+                self.aliens[row][col].state("normal")
 
     def moveCannon(self):
         """
@@ -608,10 +657,11 @@ class gameBoard(Canvas):
                 if state != "hidden":  # Only check visible aliens
                     posAlien = self.aliens[row][col].getBbox()
                     # Check if laser intersects with alien
-                    if (posAlien[0] < posCannon[2] and  # Alien's left is before cannon's right
-                            posAlien[2] > posCannon[0] and  # Alien's right is after cannon's left
-                            posAlien[1] < posCannon[3] and  # Alien's top is above cannon's bottom
-                            posAlien[3] > posCannon[1]):  # Top of alien < Top of cannon < Bottom of alien
+                    # Narrow the bounding box of aliens for more precise check
+                    if (posAlien[0]+20 < posCannon[2] and  # Alien's left is before cannon's right
+                            posAlien[2]-20 > posCannon[0] and  # Alien's right is after cannon's left
+                            posAlien[1]+20 < posCannon[3] and  # Alien's top is above cannon's bottom
+                            posAlien[3]-20 > posCannon[1]):  # Top of alien < Top of cannon < Bottom of alien
                         self.lives = 0
 
     def fire(self):
@@ -620,24 +670,22 @@ class gameBoard(Canvas):
         - Collisions with bunkers or aliens
         - Laser movement and boundary checks
         """
-        self.laser.state("normal")  # Activate laser
-        self.laser.moveTo(0, -15)  # Move the laser upwards
+        self.laser.moveTo(0, -12)  # Move the laser upwards
         posLaser = self.laser.getPosition()  # Get laser's position
-
-        # Remove laser if it reaches the top of the screen
-        if posLaser[1] <= 0:
-            self.laser.delete()  # Remove laser from the screen
-            self.attack = False  # Reset attack flag
 
         # Check for collisions with bunkers
         for bunker in self.bunkers:
             posBunker = bunker.getPosition()  # Get bunker position
             if posBunker:  # Ensure the bunker is present
-                if (posBunker[0] < posLaser[2] < posBunker[2] and
-                        posBunker[1] < posLaser[1] < posBunker[3]):
-                    self.laser.delete()  # Remove laser
-                    bunker.decreaseCount()  # Decrease bunker health
-                    self.attack = False  # Reset attack flag
+                if (posLaser[0] < posBunker[2] and
+                        posLaser[2] > posBunker[0] and
+                        posLaser[1] < posBunker[3] and
+                        posLaser[3] > posBunker[1]):
+                    if not self.passingLaser:
+                        self.laser.state("hidden")  # Remove laser
+                        bunker.decreaseCount()  # Decrease bunker health
+                        self.attack = False  # Reset attack flag
+                    return
 
         # Check for collisions with aliens
         for row in range(self.alienRow):
@@ -646,8 +694,10 @@ class gameBoard(Canvas):
                 if state != "hidden":  # Only check visible aliens
                     posAlien = self.aliens[row][col].getBbox()
                     # Check if laser intersects with alien
-                    if (posAlien[0] < posLaser[2] < posAlien[2] and
-                            posAlien[1] < posLaser[1] < posAlien[3]):
+                    if (posLaser[0] < posAlien[2]-7 and
+                            posLaser[2] > posAlien[0]+7 and
+                            posLaser[1] < posAlien[3]-15 and
+                            posLaser[3] > posAlien[1]):
                         self.aliens[row][col].state("hidden")  # Hide the alien
                         self.alienCnt -= 1  # Decrement alien count
                         self.score += 100  # Increase score by 100
@@ -672,8 +722,13 @@ class gameBoard(Canvas):
                             flashScore()
                         # If passingLaser is off, remove laser upon collision
                         if not self.passingLaser:
-                            self.laser.delete()
+                            self.laser.state("hidden")
                             self.attack = False
+                            return
+        # Remove laser if it reaches the top of the screen
+        if posLaser[1] <= 0:
+            self.laser.state("hidden") # Remove laser from the screen
+            self.attack = False  # Reset attack flag
 
     def moveAlienR(self):
         """
@@ -696,7 +751,7 @@ class gameBoard(Canvas):
         for row in range(self.alienRow):
             for col in range(self.alienCol):
                 if self.aliens[row][col].getState() != "hidden":
-                    self.aliens[row][col].moveTo(5, 0)
+                    self.aliens[row][col].moveTo(self.alienSpeed, 0)
 
         if pos[2] > Constants.WIDTH - 15:  # Check if aliens hit the edge
             self.hitEdge += 1
@@ -720,7 +775,7 @@ class gameBoard(Canvas):
         for row in range(self.alienRow):
             for col in range(self.alienCol):
                 if self.aliens[row][col].getState() != "hidden":
-                    self.aliens[row][col].moveTo(-5, 0)
+                    self.aliens[row][col].moveTo(-self.alienSpeed, 0)
 
         if pos[0] < 15:  # Check if aliens hit the edge
             self.hitEdge += 1
@@ -762,35 +817,31 @@ class gameBoard(Canvas):
         Fire projectiles from up to 3 random visible aliens and check for
         collisions with bunkers, the cannon, or screen boundaries.
         """
-        # Ensure we have a maximum of `projectilesNo` active projectiles
-        if len(self.projectiles) < self.projectilesNo:
-            # Randomly select an alien to fire a projectile
-            x = random.randint(0, self.alienRow - 1)
-            y = random.randint(0, self.alienCol - 1)
-
-            # Only fire if the selected alien is visible
-            if self.aliens[x][y].getState() != 'hidden':
-                # Create a projectile and add it to the list
-                newProjectile = Projectile(self, self.aliens[x][y])
-                self.projectiles.append(newProjectile)
-
         # Move each projectile downward and check for collisions or boundaries
         for p in self.projectiles[:]:  # Work on a copy of the list
-            p.moveTo(0, 3)  # Move projectile downward
+            if p.getState() == "hidden":
+                x = random.randint(0, self.alienRow - 1)
+                y = random.randint(0, self.alienCol - 1)
+                if self.aliens[x][y].getState() != 'hidden':
+                    posAlien = self.aliens[x][y].getBbox()
+                    p.reset(posAlien[0]+23, posAlien[1]+7, posAlien[2]-23, posAlien[3]-7)
+                    p.state("normal")
+
+            p.moveTo(0, p.speed)  # Move projectile downward
             posProjectile = p.getPosition()
 
             # Check if the projectile goes out of bounds
             if posProjectile[3] >= Constants.HEIGHT:
-                p.delete()
-                self.projectiles.remove(p)
+                p.state("hidden")
                 continue  # Skip further checks for this projectile
 
             # Check collision with cannon
             posCannon = self.cannon.getBbox()
-            if (posCannon[0] < posProjectile[2] < posCannon[2] and
-                    posCannon[1] < posProjectile[3] < posCannon[3]):
-                p.delete()
-                self.projectiles.remove(p)
+            if (posCannon[0]+5 < posProjectile[2] and
+                    posCannon[2]-5 > posProjectile[0] and
+                    posCannon[1]+15 < posProjectile[3] and
+                    posCannon[3] > posProjectile[1]):
+                p.state("hidden")
 
                 # Flash the cannon briefly and reset its position
                 def flashCannon(count=6):
@@ -810,18 +861,19 @@ class gameBoard(Canvas):
 
                 flashCannon()  # Start flashing effect
                 self.cannon.resetCoords(    # Reset position
-                    Constants.WIDTH / 2, 680
+                    Constants.WIDTH / 2, 650
                 )
                 self.decreaseLife()  # Decrease life of cannon
 
             # Check collision with bunkers
             for bunker in self.bunkers:
                 posBunker = bunker.getPosition()
-                if posBunker:  # Ensure the bunker exists
-                    if (posBunker[0] < posProjectile[2] < posBunker[2] and
-                            posBunker[1] < posProjectile[3] < posBunker[3]):
-                        p.delete()
-                        self.projectiles.remove(p)
+                if posBunker and p.getState() != "hidden":  # Ensure the bunker exists
+                    if (posBunker[0] < posProjectile[2] and
+                            posBunker[2] > posProjectile[0] and
+                            posBunker[1] < posProjectile[3] and
+                            posBunker[3] > posProjectile[1]):
+                        p.state("hidden")
                         bunker.decreaseCount()  # Reduce bunker health
                         break  # Exit bunker collision checks
 
@@ -856,25 +908,29 @@ class gameBoard(Canvas):
         - Adds the current player's score
         - Sorts and writes the updated leaderboard back to the file
         """
-        lb = {}  # Dictionary to store leaderboard data
+        # Check whether the leaderboard file exists
+        if os.path.isfile("leaderboard.txt"):
+            lb = {}  # Dictionary to store leaderboard data
+            # Read existing leaderboard file
+            with open("leaderboard.txt") as f:
+                for line in f:
+                    key, val = line.split(':')
+                    lb[key] = int(val.strip())
 
-        # Read existing leaderboard file
-        with open("leaderboard.txt") as f:
-            for line in f:
-                key, val = line.split(':')
-                lb[key] = int(val.strip())
+            # Update the leaderboard with the current player's score
+            lb[self.playerName] = self.score
 
-        # Update the leaderboard with the current player's score
-        lb[self.playerName] = self.score
+            # Sort the leaderboard by score in descending order
+            sortedScores = sorted(lb.items(), key=lambda x: x[1], reverse=True)
+            sortedLb = dict(sortedScores)
 
-        # Sort the leaderboard by score in descending order
-        sortedScores = sorted(lb.items(), key=lambda x: x[1], reverse=True)
-        sortedLb = dict(sortedScores)
-
-        # Write the updated leaderboard back to the file
-        with open("leaderboard.txt", 'w') as f:
-            for key, value in sortedLb.items():
-                f.write(f'{key}:{value}\n')
+            # Write the updated leaderboard back to the file
+            with open("leaderboard.txt", 'w') as f:
+                for key, value in sortedLb.items():
+                    f.write(f'{key}:{value}\n')
+        else: # if the file does not exist, write a new file
+            with open("leaderboard.txt", 'w') as f:
+                f.write(f'{self.playerName}:{self.score}\n')
 
 
 def openLeaderboard():
@@ -882,61 +938,65 @@ def openLeaderboard():
     Opens a leaderboard window displaying player ranks, names, and scores.
     Reads the leaderboard data from a text file and displays it in a GUI.
     """
-    lb = {}  # Dictionary to store leaderboard data
-    with open("leaderboard.txt") as f:
-        for line in f:
-            key, val = line.split(':')
-            lb[key] = val.removesuffix('\n')  # Remove newline characters
+    # Check whether the leaderboard file exists
+    if os.path.isfile("leaderboard.txt"):
+        lb = {}  # Dictionary to store leaderboard data
+        with open("leaderboard.txt") as f:
+            for line in f:
+                key, val = line.split(':')
+                lb[key] = val.removesuffix('\n')  # Remove newline characters
 
-    # Create and configure the leaderboard window
-    lbWin = Tk()
-    lbWin.title("Leaderboard")
-    ws = lbWin.winfo_screenwidth()
-    hs = lbWin.winfo_screenheight()
-    x = (ws / 2) - (400 / 2)
-    y = (hs / 2) - (400 / 2)
-    lbWin.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
-    lbWin.tk.call("tk", "scaling", 4.0)
-    lbWin.resizable(False, False)
+        # Create and configure the leaderboard window
+        lbWin = Tk()
+        lbWin.title("Leaderboard")
+        ws = lbWin.winfo_screenwidth()
+        hs = lbWin.winfo_screenheight()
+        x = (ws / 2) - (400 / 2)
+        y = (hs / 2) - (400 / 2)
+        lbWin.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
+        lbWin.tk.call("tk", "scaling", 4.0)
+        lbWin.resizable(False, False)
 
-    # Title label
-    title = Label(lbWin, text="Leaderboard", font='Helvetica 18 bold')
-    title.pack(anchor="center")
+        # Title label
+        title = Label(lbWin, text="Leaderboard", font='Helvetica 18 bold')
+        title.pack(anchor="center")
 
-    # Separator line
-    separator = ttk.Separator(lbWin, orient="horizontal")
-    separator.pack(fill="x", padx=20, pady=5)
+        # Separator line
+        separator = ttk.Separator(lbWin, orient="horizontal")
+        separator.pack(fill="x", padx=20, pady=5)
 
-    # Header row for the leaderboard table
-    header = Frame(lbWin)
-    header.pack(pady=5)
-    Label(header, text="Rank", font=("Arial", 14, "bold"),
-          width=10, anchor="center").pack(side="left")
-    Label(header, text="Player", font=("Arial", 14, "bold"),
-          width=15, anchor="center").pack(side="left")
-    Label(header, text="Score", font=("Arial", 14, "bold"),
-          width=10, anchor="center").pack(side="left")
+        # Header row for the leaderboard table
+        header = Frame(lbWin)
+        header.pack(pady=5)
+        Label(header, text="Rank", font=("Arial", 14, "bold"),
+            width=10, anchor="center").pack(side="left")
+        Label(header, text="Player", font=("Arial", 14, "bold"),
+            width=15, anchor="center").pack(side="left")
+        Label(header, text="Score", font=("Arial", 14, "bold"),
+            width=10, anchor="center").pack(side="left")
 
-    # Top 3 ranks are displayed in specific colors
-    colors = ["#FFD700", "#C0C0C0", "#CD7F32"]  # Gold, Silver, Bronze
-    i = 0
-    for player, score in lb.items():
-        row = Frame(lbWin)
-        row.pack(pady=2)
+        # Top 3 ranks are displayed in specific colors
+        colors = ["#FFD700", "#C0C0C0", "#CD7F32"]  # Gold, Silver, Bronze
+        i = 0
+        for player, score in lb.items():
+            row = Frame(lbWin)
+            row.pack(pady=2)
 
-        # Assign a specific color for top 3 players
-        color = colors[i] if i < 3 else "black"
+            # Assign a specific color for top 3 players
+            color = colors[i] if i < 3 else "black"
 
-        Label(row, text=f"{i + 1}", font=("Arial", 14), width=10,
-              anchor="center", fg=color).pack(side="left")
-        Label(row, text=player, font=("Arial", 14), width=15,
-              anchor="center", fg=color).pack(side="left")
-        Label(row, text=str(score), font=("Arial", 14), width=10,
-              anchor="center", fg=color).pack(side="left")
-        i += 1
-        if i > 11:  # Display up to 12 entries
-            break
-
+            Label(row, text=f"{i + 1}", font=("Arial", 14), width=10,
+                anchor="center", fg=color).pack(side="left")
+            Label(row, text=player, font=("Arial", 14), width=15,
+                anchor="center", fg=color).pack(side="left")
+            Label(row, text=str(score), font=("Arial", 14), width=10,
+                anchor="center", fg=color).pack(side="left")
+            i += 1
+            if i > 11:  # Display up to 12 entries
+                break
+    else: # if the file does not exist, show the message
+        messagebox.showinfo("Leaderboard Not Found",
+                            "There is no leaderboard yet.\n PLAY the game first!!")
 
 def keyPressed(event):
     """
@@ -956,8 +1016,8 @@ def keyPressed(event):
             board.bunkers.append(Bunker(board, 75 + 242.5 * i,
                                         500, 200 + 242.5 * i, 550, 300))
 
-    # If 'p' and 'l' are pressed, enable passing laser
-    elif 'p' in board.pressedKeys and 'l' in board.pressedKeys:
+    # If 'M', 'L', 'P'  are pressed, enable passing laser
+    elif 'M' in board.pressedKeys and 'L' in board.pressedKeys and 'P' in board.pressedKeys:
         board.passingLaser = True
 
     # If 'i' and 'l' are pressed, increase life
@@ -976,7 +1036,10 @@ def keyPressed(event):
     # Fire laser if the fire key is pressed and attack is not active
     elif event.keysym == board.selectedKeys[2] and not board.attack:
         board.attack = True
-        board.laser = Laser(board, board.cannon)
+        posCannon = board.cannon.getBbox()  # Get cannon's position
+        board.laser.reset(posCannon[0]+23, posCannon[1]+7,
+                          posCannon[2]-23, posCannon[3]-7)  # Position laser at cannon
+        board.laser.state("normal")  # Make the laser visible
         board.fire()
 
     # Open menu if 'm' is pressed
@@ -1056,6 +1119,13 @@ def openPopup():
     initWin.tk.call("tk", "scaling", 4.0)
     initWin.resizable(False, False)
 
+    def onClose():
+        """Handle the popup window's close event"""
+        initWin.destroy()   # Destroy the popup window
+        window.destroy()    # Destory the main game window
+
+    initWin.protocol("WM_DELETE_WINDOW", onClose)  # Bind the close event
+
     # Add label and entry for the user's name
     nameLabel = Label(initWin, text="Enter your name:",
                        font='Helvetica 18 bold')
@@ -1103,18 +1173,36 @@ def openPopup():
         """
         playerName = nameEntry.get()
         if not playerName.strip():  # Check if name is empty
-            name = Toplevel(initWin)
-            ws = name.winfo_screenwidth()
-            hs = name.winfo_screenheight()
+            missingName = Toplevel(initWin)
+            ws = missingName.winfo_screenwidth()
+            hs = missingName.winfo_screenheight()
             x = (ws / 2) - (400 / 2)
             y = (hs / 2) - (100 / 2)
-            name.geometry(f"{400}x{100}+{int(x)}+{int(y)}")
-            name.tk.call("tk", "scaling", 4.0)
-            name.resizable(False, False)
-            name.title("Name")
-            t = ttk.Label(name, text="You need to enter your NAME",
+            missingName.geometry(f"{400}x{100}+{int(x)}+{int(y)}")
+            missingName.tk.call("tk", "scaling", 4.0)
+            missingName.resizable(False, False)
+            missingName.title("Name")
+            t = ttk.Label(missingName, text="You need to enter your NAME",
                           font='Mistral 18 bold')
             t.pack(pady=35, anchor="center")
+        elif os.path.isfile(f"{playerName}.txt"):
+            nameExist = Toplevel(initWin)
+            ws = nameExist.winfo_screenwidth()
+            hs = nameExist.winfo_screenheight()
+            x = (ws / 2) - (500 / 2)
+            y = (hs / 2) - (100 / 2)
+            nameExist.geometry(f"{500}x{100}+{int(x)}+{int(y)}")
+            nameExist.tk.call("tk", "scaling", 4.0)
+            nameExist.resizable(False, False)
+            nameExist.title("Name")
+            t1 = ttk.Label(nameExist,
+                          text="The name already exists.",
+                          font='Mistral 17 bold')
+            t2 = ttk.Label(nameExist,
+                           text="Please enter a different name or load the saved file to play",
+                           font='Mistral 17 bold')
+            t1.pack(pady=10, anchor="center")
+            t2.pack(pady=10, anchor="center")
         else:
             # Retrieve the selected values
             selectedKeys = movementKeys.get()
@@ -1127,6 +1215,7 @@ def openPopup():
 
             # Close the sign-in window and start the game
             initWin.destroy()
+            window.deiconify()
             startGame(playerName, selectedKeys, gameLevel)
 
     # Create and place the submit button
@@ -1178,6 +1267,7 @@ def openPopup():
 
             # Close the window and start the game
             initWin.destroy()
+            window.deiconify()
             startGame(playerName, selectedKeys, gameLevel,
                        round, score, lives, alienCnt, aliensPos,
                        bunkersCnt, cannonPos)
@@ -1186,8 +1276,9 @@ def openPopup():
     loadButton = Button(initWin, text="Load saved file", command=load)
     loadButton.grid(row=8, column=0, padx=(20, 0), pady=(10, 0))
 
+    initWin.mainloop()
 
-def startGame(player_name, selected_keys, gameLevel, *args):
+def startGame(playerName, selectedKeys, gameLevel, *args):
     """
     Initializes and starts the game based on the provided player details
     and game state. If arguments for the game state are provided, it loads
@@ -1196,7 +1287,6 @@ def startGame(player_name, selected_keys, gameLevel, *args):
     global board
 
     # Create the main game window
-    window = Toplevel()
     window.title("Space Invaders")
 
     # Center the window on the screen
@@ -1210,20 +1300,16 @@ def startGame(player_name, selected_keys, gameLevel, *args):
 
     # Start the game with player details
     if len(args) == 0:
-        board = gameBoard(window, player_name, selected_keys, gameLevel)
+        board = gameBoard(window, playerName, selectedKeys, gameLevel)
     else:
-        board = gameBoard(window, player_name, selected_keys, gameLevel, *args)
+        board = gameBoard(window, playerName, selectedKeys, gameLevel, *args)
 
     # Bind keys for controlling the game
     window.bind("<KeyPress>", keyPressed)
     window.bind("<KeyRelease>", keyReleased)
 
-    # Start the Tkinter event loop
-    window.mainloop()
-
-
 # Initialize main Tkinter window
-root = Tk()
-root.withdraw()  # Hide the main window initially
+window = Tk()
+window.withdraw()  # Hide the main window initially
 openPopup()  # Show the popup for player sign-in and settings
-root.mainloop()
+window.mainloop()
