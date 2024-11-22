@@ -1,13 +1,15 @@
 # Space Invaders
 
 from tkinter import (Tk, Canvas, Label, Toplevel, ttk,
-                     Radiobutton, StringVar, Button, Frame, Listbox, messagebox)
+                     Radiobutton, StringVar, Button,
+                     Frame, Listbox, messagebox)
 import random
 import os
 from PIL import ImageTk, Image
 
 
 class Constants:
+    """A class contains the constant values"""
     WIDTH = 750
     HEIGHT = 750
 
@@ -36,7 +38,7 @@ class GameObjects:
         self.canvas.delete(self.obj)
 
     def reset(self, x0, y0, x1, y1):
-        """Center the object in the given bounding box."""
+        """Reset the object in the given bounding box."""
         self.canvas.coords(self.obj, x0, y0, x1, y1)
 
     def resetBbox(self, x0, y0, x1, y1):
@@ -114,6 +116,7 @@ class Laser(GameObjects):
         self.speed = -10
         pos = cannon.getBbox()
         item = canvas.create_rectangle(
+            # Lasor is fired from the centre of the cannon
             pos[0] + 23, pos[1] + 7, pos[2] - 23, pos[3] - 7,
             fill="#66c2ff", state="hidden", width=0
         )
@@ -236,7 +239,6 @@ class Projectile(GameObjects):
             alien (Alien): The alien firing the projectile.
         """
         self.speed = 4
-        # Determine the projectile's initial position
 
         # Create a rectangular projectile on the canvas
         item = canvas.create_rectangle(
@@ -248,48 +250,48 @@ class Projectile(GameObjects):
 
         # Initialize the base GameObjects class
         super(Projectile, self).__init__(canvas, item)
-    
+
     def increaseSpeed(self):
+        """
+        Increase the projectile speed by 1.
+        """
         self.speed += 1
 
 
-class gameBoard(Canvas):
+class GameBoard(Canvas):
     """
     A class to initialize and manage the game board in a Tkinter window.
 
-    The game board contains game elements such as aliens, bunkers,
-    cannon, projectiles, and background, along with player settings
-    and game states.
-
     Attributes:
         playerName (str): The player's name.
-        selectedKeys (list): Player control keys.
-        gameLevel (str): The game level ("beginner" or "advanced").
-        alienRow (int): Number of alien rows.
-        alienCol (int): Number of alien columns.
-        projectilesNo (int): Max alien projectiles.
-        bunkerCnt (int): Initial bunker strength.
-        menuOn (bool): Whether the menu is displayed.
-        cannonMoveLeft (bool): Whether the cannon moves left.
-        cannonMoveRight (bool): Whether the cannon moves right.
-        attack (bool): Whether the cannon is firing.
-        bunkers (list): List of Bunker objects.
-        hitEdge (int): Tracks edge collisions by aliens.
+        selectedKeys (list): List of keys used for player controls.
+        gameLevel (str): The game difficulty level ("beginner" or "advanced").
+        alienRow (int): Number of rows of aliens on the board.
+        alienCol (int): Number of columns of aliens on the board.
+        projectilesNo (int): Maximum number of projectiles aliens can fire.
+        bunkerCnt (int): Initial strength of each bunker.
+        menuOn (bool): Indicates if the menu is currently displayed.
+        cannonMoveLeft (bool): Indicates if the cannon is moving left.
+        cannonMoveRight (bool): Indicates if the cannon is moving right.
+        attack (bool): Indicates if the cannon is firing.
+        bunkers (list): List of Bunker objects on the game board.
+        hitEdge (int): Tracks the number of times aliens hit the edge.
         aliens (list): 2D list of Alien objects.
-        projectiles (list): List of Projectile objects.
-        pressedKeys (set): Currently pressed keys.
-        passingLaser (bool): Whether a laser is passing.
-        lifeArray (list): List of life indicator objects.
-        lives (int): Remaining player lives.
-        cannon (Cannon): Player-controlled cannon.
-        laser (Laser): Player's laser object.
-        score (int): Player's score.
-        scoreText (int): Canvas text for score.
+        projectiles (list): List of active Projectile objects.
+        pressedKeys (set): Set of keys currently being pressed.
+        passingLaser (bool): Indicates if a laser is active.
+        lifeArray (list): List of graphical life indicators.
+        lives (int): Player's remaining lives.
+        cannon (Cannon): The player's cannon object.
+        laser (Laser): The player's laser object.
+        score (int): The player's current score.
+        scoreText (int): Canvas text object displaying the score.
         round (int): Current game round.
-        roundText (int): Canvas text for the round.
+        roundText (int): Canvas text object displaying the round.
 
     Methods:
-        gameLoop(): Starts the main game loop.
+        gameLoop():
+            Starts the main game loop, updating all game elements.
     """
 
     def __init__(self, windowIn, playerName, selectedKeys, gameLevel, *args):
@@ -297,13 +299,13 @@ class gameBoard(Canvas):
         Initializes the game board and its elements.
 
         Args:
-            window (tkinter.Tk): The game window.
-            playerName (str): The player's name.
+            windowIn (tkinter.Tk): The main Tkinter window.
+            playerName (str): The name of the player.
             selectedKeys (str): Underscore-separated keys for controls.
             gameLevel (str): The game difficulty level.
-            *args: Optional saved game state data.
+            *args: Optional arguments for loading a saved game state.
         """
-        # Initialize the Canvas
+        # Initialize the Canvas with a black background
         Canvas.__init__(self, windowIn, bg="#000000",
                         width=Constants.WIDTH, height=Constants.HEIGHT)
         self.pack()
@@ -312,18 +314,20 @@ class gameBoard(Canvas):
         bg = Image.open("spaceBg.jpg").resize(
             (Constants.WIDTH, Constants.HEIGHT)
         )
-        self.bgImage = ImageTk.PhotoImage(bg)  # Prevent GC
+        self.bgImage = ImageTk.PhotoImage(bg)  # Prevent garbage collection
         self.create_image(0, 0, anchor="nw", image=self.bgImage)
 
+        # Load the cannon image
         cannonImg = Image.open("cannon.png").resize(
             (50, 50), Image.Resampling.LANCZOS
         )
 
+        # Load the alien image
         alienImg = Image.open("alien1.png").resize(
             (50, 50), Image.Resampling.LANCZOS
         )
 
-        # Initialize player and game state variables
+        # Initialize player settings
         self.playerName = playerName
         self.selectedKeys = selectedKeys.split('_')
         self.gameLevel = gameLevel
@@ -338,8 +342,9 @@ class gameBoard(Canvas):
         self.pressedKeys = set()
         self.passingLaser = False
         self.hitEdge = 0
+        self.lifeArray = []
 
-        # Configure game parameters based on the difficulty
+        # Configure game difficulty
         if self.gameLevel == "beginner":
             self.alienRow = 2
             self.alienCol = 8
@@ -348,28 +353,21 @@ class gameBoard(Canvas):
         else:
             self.alienRow = 4
             self.alienCol = 8
-            self.projectilesNo = 3
+            self.projectilesNo = 4
             self.bunkerCnt = 30
 
         # Initialize projectiles
         for _ in range(self.projectilesNo):
             self.projectiles.append(Projectile(self))
 
-        # Initialize bunkers
+        # Set up bunkers
         for i in range(3):
             self.bunkers.append(
                 Bunker(self, 75 + 242.5 * i, 500, 200 + 242.5 * i, 550,
                        self.bunkerCnt)
             )
 
-        # Initialize life indicators
-        self.lifeArray = []
-        lifeImg = Image.open("life.png").resize(
-            (25, 25), Image.Resampling.LANCZOS
-        )
-        self.lifeImg = ImageTk.PhotoImage(master=self, image=lifeImg)
-
-        # Initialize game elements
+        # Set up the game based on new or saved state
         if len(args) == 0:  # New game
             self.lives = 3
             self.cannon = Cannon(self, cannonImg)
@@ -377,17 +375,7 @@ class gameBoard(Canvas):
             self.score = 0
             self.round = 0
 
-            # Add score and round text
-            self.scoreText = self.create_text(
-                Constants.WIDTH / 2, 40, text=f"Score: {self.score}",
-                fill="white", font="Helvetica 25 bold"
-            )
-            self.roundText = self.create_text(
-                80, 40, text=f"Round: {self.round}", fill="white",
-                font="Helvetica 25 bold"
-            )
-
-            # Initialize aliens
+            # Initialize aliens in rows and columns
             self.alienCnt = self.alienRow * self.alienCol
             for row in range(self.alienRow):
                 line = []
@@ -397,23 +385,14 @@ class gameBoard(Canvas):
                               185 + 60 * col, 115 + 60 * row, alienImg)
                     )
                 self.aliens.append(line)
-        else:  # Load saved game state
+        else:  # Load saved state
             self.round = args[0]
             self.score = args[1]
             self.lives = args[2]
             self.alienCnt = args[3]
+            self.menuOn = True
 
-            # Add round and score text
-            self.roundText = self.create_text(
-                80, 40, text=f"Round: {self.round}", fill="white",
-                font="Helvetica 25 bold"
-            )
-            self.scoreText = self.create_text(
-                Constants.WIDTH / 2, 40, text=f"Score: {self.score}",
-                fill="white", font="Helvetica 25 bold"
-            )
-
-            # Restore aliens
+            # Restore aliens from saved positions
             line = []
             for i in range(self.alienRow * self.alienCol):
                 alienPos = args[4][i]
@@ -443,20 +422,51 @@ class gameBoard(Canvas):
             x1, y1, x2, y2 = map(float, cannonPos)
             self.cannon = Cannon(self, cannonImg)
             self.cannon.resetBbox(x1, y1, x2, y2)
-            
+
             self.laser = Laser(self, self.cannon)
 
-        # Add life indicators
+        # Add score and round text
+        self.scoreText = self.create_text(
+            Constants.WIDTH / 2, 40, text=f"Score: {self.score}",
+            fill="white", font="Helvetica 25 bold"
+        )
+        self.roundText = self.create_text(
+            80, 40, text=f"Round: {self.round}", fill="white",
+            font="Helvetica 25 bold"
+        )
+
+        # Add hidden upgrade indicators
+        self.projectileNoText = self.create_text(
+            80, 70, text="+1 Projectile", fill="white",
+            font="Helvetica 18 bold", state="hidden"
+        )
+        self.projectileSpeedText = self.create_text(
+            100, 90, text="Projectile Speed UP", fill="white",
+            font="Helvetica 18 bold", state="hidden"
+        )
+        self.alienSpeedText = self.create_text(
+            80, 110, text="Alien Speed UP", fill="white",
+            font="Helvetica 18 bold", state="hidden"
+        )
+
+        # Load and configure life indicators
+        lifeImg = Image.open("life.png").resize(
+            (25, 25), Image.Resampling.LANCZOS
+        )
+        self.lifeImg = ImageTk.PhotoImage(master=self, image=lifeImg)
+        # Add graphical life indicators
         for i in range(self.lives):
             self.lifeArray.append(
                 self.create_image(612.5 + 40 * i, 37.5, image=self.lifeImg)
             )
+
         # Start the game loop
         self.gameLoop()
 
     def gameLoop(self):
         """
         Main game loop to handle the continuous gameplay mechanics including:
+        - Handling the window close event
         - Alien movements
         - Projectile firing (both by cannon and aliens)
         - Collision checks
@@ -469,14 +479,18 @@ class gameBoard(Canvas):
         def onClose():
             """
             Handles the window close event.
-            
-            This function is triggered when the user attempts to close the game window.
-            It prompts the user with a message box asking whether they want to save the game.
-            - If the user chooses 'Yes', the game state is saved before the window is closed.
+
+            This function is called when the user attempts to
+            close the game window.
+            Shows a messagebox asking whether the player want to save the game.
+            - If the user chooses 'Yes', the game state is saved.
             - If the user chooses 'No', the window is closed without saving.
             """
-            # Display a message box asking the user if they want to save the game
-            save = messagebox.askyesnocancel(message="Would you like to save the game?")
+            # Display a message box asking the user
+            # if they want to save the game
+            save = messagebox.askyesnocancel(
+                message="Would you like to save the game?"
+            )
 
             if save:
                 # User chose to save the game
@@ -489,16 +503,13 @@ class gameBoard(Canvas):
                 window.destroy()  # Destroy the main application window
             else:
                 # User chose not to close the game window
-                return # Go back to the game loop
+                return  # Go back to the game loop
 
         # Set up the protocol handler to intercept the window close event
         window.protocol("WM_DELETE_WINDOW", onClose)
 
-        if not self.winfo_exists():
-            self.destroy()
-
+        # Reset the aliens if all have been destroyed
         if self.alienCnt == 0:
-            # Reset the aliens if all have been destroyed
             self.resetAliens()
 
         # Move aliens in the current direction (right or left)
@@ -520,15 +531,90 @@ class gameBoard(Canvas):
         # Check if the in-game menu is active
         if self.menuOn:
             # Pause the game and display a menu window
-            self.menu = Tk()
+            self.menu = Toplevel()
             self.menu.title("Menu")
             ws = self.menu.winfo_screenwidth()
             hs = self.menu.winfo_screenheight()
-            x = (ws / 2) - (400 / 2)
-            y = (hs / 2) - (400 / 2)
-            self.menu.geometry(f"{400}x{400}+{int(x)}+{int(y)}")
+            x = (ws / 2) + (Constants.WIDTH / 2)
+            y = (hs / 2) - (Constants.HEIGHT / 2)
+            self.menu.geometry(f"{400}x{300}+{int(x)}+{int(y)}")
             self.menu.tk.call("tk", "scaling", 4.0)
             self.menu.resizable(False, False)
+
+            # Display the player's name at the top of the menu
+            nameLabel = Label(
+                self.menu,
+                text=f"Player Name: {self.playerName}"
+            )
+            nameLabel.grid(
+                row=0, column=0, sticky='W',
+                padx=20, pady=(20, 0), columnspan=3
+            )
+
+            # Show the keys selected for movement and firing
+            keyLabel = Label(
+                self.menu,
+                text=(
+                    "Selected Keys: "
+                    f"'{self.selectedKeys[0]}/{self.selectedKeys[1]}' "
+                    f"to move and '{self.selectedKeys[2]}' to fire"
+                )
+            )
+            keyLabel.grid(
+                row=1, column=0, sticky='W', padx=20, pady=(5, 0), columnspan=3
+            )
+
+            # Display the current game level
+            levelLabel = Label(
+                self.menu,
+                text=f"Game Level: {self.gameLevel}"
+            )
+            levelLabel.grid(
+                row=2, column=0, sticky='W', padx=20, pady=(5, 0), columnspan=3
+            )
+
+            # Display the boss key instructions
+            bossKeyLabel = Label(
+                self.menu,
+                text="Boss Key: Press 'esc' or 'B'"
+            )
+            bossKeyLabel.grid(
+                row=3, column=0, sticky='W', padx=20, pady=(5, 0), columnspan=3
+            )
+
+            # Show the header for cheat codes section
+            cheatCodeLabel = Label(
+                self.menu,
+                text="Cheat Codes: "
+            )
+            cheatCodeLabel.grid(
+                row=4, column=0, sticky='W', padx=(20, 8), pady=(5, 0)
+            )
+
+            # Display individual cheat code instructions
+            cc1 = Label(
+                self.menu,
+                text="Press 'i' and 'b' to increase bunker counts"
+            )
+            cc2 = Label(
+                self.menu,
+                text="Press 'i' and 'l' to increase life counts"
+            )
+            cc3 = Label(
+                self.menu,
+                text="Press 'M', 'L' and 'P' for the passing laser"
+            )
+
+            # Grid placement for each cheat code instruction
+            cc1.grid(
+                row=4, column=1, sticky='W', pady=(5, 0), columnspan=2
+            )
+            cc2.grid(
+                row=5, column=1, sticky='W', pady=(5, 0), columnspan=2
+            )
+            cc3.grid(
+                row=6, column=1, sticky='W', pady=(5, 0), columnspan=2
+            )
 
             def resume():
                 """
@@ -541,13 +627,14 @@ class gameBoard(Canvas):
 
             # Create buttons for menu options
             resumeBtn = Button(self.menu, text="Resume", command=resume)
-            resumeBtn.pack()
+            resumeBtn.grid(row=7, column=0, padx=(25, 0), pady=25)
             saveBtn = Button(self.menu, text="Save", command=self.save)
-            saveBtn.pack()
+            saveBtn.grid(row=7, column=1, padx=(27, 0), pady=2)
             leaderboard = Button(self.menu, text="Leaderboard",
                                  command=openLeaderboard)
-            leaderboard.pack()
-            
+            leaderboard.grid(row=7, column=2, padx=(25, 0), pady=2)
+
+            # Resume the game if the menu is closed
             self.menu.protocol("WM_DELETE_WINDOW", resume)
 
         elif self.lives > 0:
@@ -562,12 +649,15 @@ class gameBoard(Canvas):
                 fill="red",
                 font="Helvetica 30 bold"
             )
-            # Update the leaderboard and display it
+
+            # Delete the saved file
             if os.path.isfile(f"{self.playerName}.txt"):
                 os.remove(f"{self.playerName}.txt")
-            window.destroy()
+
+            # Update the leaderboard and display it
             self.updateLeaderboard()
             openLeaderboard()
+            window.destroy()
 
     def save(self):
         """
@@ -602,37 +692,57 @@ class gameBoard(Canvas):
 
             # Save cannon's position
             f.write(str(self.cannon.getBbox()))
-        if self.menuOn:
-            self.menu.destroy()
-        self.destroy()
+
+        window.destroy()
 
     def resetAliens(self):
         """
-        Reset the aliens for the next round by:
-        - Clearing the current alien list
-        - Reinitializing the alien grid
-        - Updating round and game parameters
-        """
-        self.alienCnt = self.alienRow * self.alienCol  # Reset alien count
-        self.round += 1  # Increment the round count
-        self.itemconfigure(
-            self.roundText, text="Round: " + str(self.round)
-        )  # Update round display
-        self.hitEdge = 0  # Reset edge tracking
+        Reset the aliens for the next round.
 
-        # Increase the number of projectiles every 3 rounds
-        if self.round != 0 and self.round % 3 == 0:
+        This method performs the following actions:
+        - Resets the number of aliens for the new round.
+        - Increments the round count and updates the display.
+        - Resets alien edge tracking.
+        - Hides any displayed upgrade notifications.
+        - Increases projectiles, projectile speed, and alien speed at
+        specific round intervals.
+        - Repositions all aliens to their starting locations and makes
+        them visible.
+        """
+        # Reset alien count and increment the round
+        self.alienCnt = self.alienRow * self.alienCol
+        self.round += 1
+        self.itemconfigure(self.roundText, text="Round: " + str(self.round))
+        self.hitEdge = 0  # Reset edge collision tracking
+
+        # Hide upgrade notifications
+        self.itemconfig(self.projectileNoText, state="hidden")
+        self.itemconfig(self.projectileSpeedText, state="hidden")
+        self.itemconfig(self.alienSpeedText, state="hidden")
+
+        # Increase projectiles every 3 round
+        if self.round % 3 == 0:
             self.projectiles.append(Projectile(self))
+            self.itemconfig(self.projectileNoText, state="normal")
+
+        # Increase projectile speed every 5 rounds
+        if self.round % 5 == 0:
+            self.itemconfig(self.projectileSpeedText, state="normal")
             for p in self.projectiles:
                 p.increaseSpeed()
-        elif self.round % 5 == 0:
+
+        # Increase alien speed every 7 rounds
+        if self.round % 7 == 0:
+            self.itemconfig(self.alienSpeedText, state="normal")
             self.alienSpeed += 1
 
-        # Recreate aliens in their initial positions
+        # Reset all aliens to their initial positions and make them visible
         for row in range(self.alienRow):
             for col in range(self.alienCol):
-                self.aliens[row][col].resetBbox(145 + 60 * col, 75 + 60 * row,
-                                                185 + 60 * col, 115 + 60 * row)
+                self.aliens[row][col].resetBbox(
+                    145 + 60 * col, 75 + 60 * row,
+                    185 + 60 * col, 115 + 60 * row
+                )
                 self.aliens[row][col].state("normal")
 
     def moveCannon(self):
@@ -656,13 +766,14 @@ class gameBoard(Canvas):
                 state = self.aliens[row][col].getState()  # Get alien's state
                 if state != "hidden":  # Only check visible aliens
                     posAlien = self.aliens[row][col].getBbox()
-                    # Check if laser intersects with alien
-                    # Narrow the bounding box of aliens for more precise check
-                    if (posAlien[0]+20 < posCannon[2] and  # Alien's left is before cannon's right
-                            posAlien[2]-20 > posCannon[0] and  # Alien's right is after cannon's left
-                            posAlien[1]+20 < posCannon[3] and  # Alien's top is above cannon's bottom
-                            posAlien[3]-20 > posCannon[1]):  # Top of alien < Top of cannon < Bottom of alien
-                        self.lives = 0
+                    # Check if cannon intersects with alien
+                    # Narrow the bounding box of aliens
+                    # for more precise collision check
+                    if (posAlien[0]+20 < posCannon[2] and
+                            posAlien[2]-20 > posCannon[0] and
+                            posAlien[1]+20 < posCannon[3] and
+                            posAlien[3]-20 > posCannon[1]):
+                        self.lives = 0  # game over
 
     def fire(self):
         """
@@ -682,7 +793,7 @@ class gameBoard(Canvas):
                         posLaser[1] < posBunker[3] and
                         posLaser[3] > posBunker[1]):
                     if not self.passingLaser:
-                        self.laser.state("hidden")  # Remove laser
+                        self.laser.state("hidden")  # hide laser
                         bunker.decreaseCount()  # Decrease bunker health
                         self.attack = False  # Reset attack flag
                     return
@@ -701,8 +812,10 @@ class gameBoard(Canvas):
                         self.aliens[row][col].state("hidden")  # Hide the alien
                         self.alienCnt -= 1  # Decrement alien count
                         self.score += 100  # Increase score by 100
-                        self.itemconfigure(self.scoreText, text="Score: " + str(self.score))
+                        self.itemconfigure(self.scoreText,
+                                           text="Score: " + str(self.score))
                         # Flash the score text briefly
+
                         def flashScore(count=6):
                             """
                             Flash score text by toggling its visibility.
@@ -713,21 +826,22 @@ class gameBoard(Canvas):
                                     currentColor = "red"
                                 else:
                                     currentColor = "white"
-                                self.itemconfig(self.scoreText, fill=currentColor)
+                                self.itemconfig(self.scoreText,
+                                                fill=currentColor)
                                 self.after(     # Toggle every 50ms
                                     50, flashScore, count - 1
                                 )
                         # Flash score text when the score is multiple of 1000
                         if self.score % 1000 == 0:
                             flashScore()
-                        # If passingLaser is off, remove laser upon collision
+                        # If passingLaser is off, hide laser upon collision
                         if not self.passingLaser:
                             self.laser.state("hidden")
                             self.attack = False
                             return
-        # Remove laser if it reaches the top of the screen
+        # hide laser if it reaches the top of the screen
         if posLaser[1] <= 0:
-            self.laser.state("hidden") # Remove laser from the screen
+            self.laser.state("hidden")  # hide laser from the screen
             self.attack = False  # Reset attack flag
 
     def moveAlienR(self):
@@ -814,40 +928,53 @@ class gameBoard(Canvas):
 
     def fireProjectile(self):
         """
-        Fire projectiles from up to 3 random visible aliens and check for
-        collisions with bunkers, the cannon, or screen boundaries.
+        Handle the firing of projectiles from aliens and manage their behavior.
+
+        This method performs the following:
+        - Randomly selects aliens to fire projectiles.
+        - Moves projectiles downward and checks for collisions with:
+        - The screen boundary (hides the projectile if out of bounds).
+        - The cannon (triggers cannon flash and position reset).
+        - Bunkers (reduces bunker health on impact).
         """
-        # Move each projectile downward and check for collisions or boundaries
-        for p in self.projectiles[:]:  # Work on a copy of the list
+        # Iterate over projectiles and manage their behavior
+        for p in self.projectiles[:]:  # Work on copy to avoid mutation issues
+            # Check if projectile is hidden and assign it to a visible alien
             if p.getState() == "hidden":
                 x = random.randint(0, self.alienRow - 1)
                 y = random.randint(0, self.alienCol - 1)
                 if self.aliens[x][y].getState() != 'hidden':
                     posAlien = self.aliens[x][y].getBbox()
-                    p.reset(posAlien[0]+23, posAlien[1]+7, posAlien[2]-23, posAlien[3]-7)
-                    p.state("normal")
+                    p.reset(
+                        posAlien[0] + 23, posAlien[1] + 7,
+                        posAlien[2] - 23, posAlien[3] - 7
+                    )
+                    p.state("normal")  # Make the projectile visible
 
-            p.moveTo(0, p.speed)  # Move projectile downward
+            # Move the projectile downward
+            p.moveTo(0, p.speed)
             posProjectile = p.getPosition()
 
-            # Check if the projectile goes out of bounds
+            # Hide projectile if it goes out of bounds
             if posProjectile[3] >= Constants.HEIGHT:
                 p.state("hidden")
                 continue  # Skip further checks for this projectile
 
-            # Check collision with cannon
+            # Check for collision with the cannon
             posCannon = self.cannon.getBbox()
-            if (posCannon[0]+5 < posProjectile[2] and
-                    posCannon[2]-5 > posProjectile[0] and
-                    posCannon[1]+15 < posProjectile[3] and
+            if (posCannon[0] + 5 < posProjectile[2] and
+                    posCannon[2] - 5 > posProjectile[0] and
+                    posCannon[1] + 15 < posProjectile[3] and
                     posCannon[3] > posProjectile[1]):
-                p.state("hidden")
+                p.state("hidden")  # Hide the projectile
 
-                # Flash the cannon briefly and reset its position
+                # Flash the cannon and reset its position
                 def flashCannon(count=6):
                     """
-                    Flash cannon by toggling its visibility.
-                    Count represents the number of state changes.
+                    Flash the cannon by toggling its visibility.
+
+                    Args:
+                        count (int): Number of state toggles to perform.
                     """
                     if count > 0:
                         if count % 2 == 0:
@@ -855,27 +982,25 @@ class gameBoard(Canvas):
                         else:
                             current_state = "normal"
                         self.cannon.state(current_state)
-                        self.after(     # Toggle every 50ms
-                            50, flashCannon, count - 1
-                        )
+                        self.after(50, flashCannon, count - 1)
 
-                flashCannon()  # Start flashing effect
-                self.cannon.resetCoords(    # Reset position
-                    Constants.WIDTH / 2, 650
-                )
-                self.decreaseLife()  # Decrease life of cannon
+                flashCannon()  # Start the flashing effect
+                self.cannon.resetCoords(Constants.WIDTH / 2, 650)
+                self.decreaseLife()  # Decrease the player's life count
 
-            # Check collision with bunkers
+            # Check for collision with bunkers
             for bunker in self.bunkers:
                 posBunker = bunker.getPosition()
-                if posBunker and p.getState() != "hidden":  # Ensure the bunker exists
+                if posBunker and p.getState() != "hidden":
                     if (posBunker[0] < posProjectile[2] and
                             posBunker[2] > posProjectile[0] and
                             posBunker[1] < posProjectile[3] and
                             posBunker[3] > posProjectile[1]):
-                        p.state("hidden")
-                        bunker.decreaseCount()  # Reduce bunker health
-                        break  # Exit bunker collision checks
+                        p.state("hidden")  # Hide the projectile
+                        bunker.decreaseCount()  # Reduce the bunker's health
+
+                        # Stop checking other bunkers for this projectile
+                        break
 
     def decreaseLife(self):
         """
@@ -928,7 +1053,7 @@ class gameBoard(Canvas):
             with open("leaderboard.txt", 'w') as f:
                 for key, value in sortedLb.items():
                     f.write(f'{key}:{value}\n')
-        else: # if the file does not exist, write a new file
+        else:   # if the file does not exist, write a new file
             with open("leaderboard.txt", 'w') as f:
                 f.write(f'{self.playerName}:{self.score}\n')
 
@@ -969,11 +1094,11 @@ def openLeaderboard():
         header = Frame(lbWin)
         header.pack(pady=5)
         Label(header, text="Rank", font=("Arial", 14, "bold"),
-            width=10, anchor="center").pack(side="left")
+              width=10, anchor="center").pack(side="left")
         Label(header, text="Player", font=("Arial", 14, "bold"),
-            width=15, anchor="center").pack(side="left")
+              width=15, anchor="center").pack(side="left")
         Label(header, text="Score", font=("Arial", 14, "bold"),
-            width=10, anchor="center").pack(side="left")
+              width=10, anchor="center").pack(side="left")
 
         # Top 3 ranks are displayed in specific colors
         colors = ["#FFD700", "#C0C0C0", "#CD7F32"]  # Gold, Silver, Bronze
@@ -986,70 +1111,82 @@ def openLeaderboard():
             color = colors[i] if i < 3 else "black"
 
             Label(row, text=f"{i + 1}", font=("Arial", 14), width=10,
-                anchor="center", fg=color).pack(side="left")
+                  anchor="center", fg=color).pack(side="left")
             Label(row, text=player, font=("Arial", 14), width=15,
-                anchor="center", fg=color).pack(side="left")
+                  anchor="center", fg=color).pack(side="left")
             Label(row, text=str(score), font=("Arial", 14), width=10,
-                anchor="center", fg=color).pack(side="left")
+                  anchor="center", fg=color).pack(side="left")
             i += 1
             if i > 11:  # Display up to 12 entries
                 break
-    else: # if the file does not exist, show the message
+    else:   # if the file does not exist, show the message
         messagebox.showinfo("Leaderboard Not Found",
-                            "There is no leaderboard yet.\n PLAY the game first!!")
+                            "There is no leaderboard yet.\n" +
+                            "PLAY the game first!!")
+
 
 def keyPressed(event):
     """
-    Handles key press events, controlling cannon movement, firing,
-    and handling game shortcuts.
+    Handles key press events to control the game.
+
+    This function performs the following:
+    - Cannon movement and firing.
+    - Special shortcuts like adding bunkers, enabling passing lasers,
+      and increasing lives.
+    - Opens the menu or triggers debug actions when specific keys are pressed.
     """
     global board
     posCannon = board.cannon.getBbox()
     board.pressedKeys.add(event.keysym)
 
-    # If 'i' and 'b' are pressed, reset and add bunkers
+    # If 'i' and 'b' are pressed together, reset and add new bunkers
     if 'i' in board.pressedKeys and 'b' in board.pressedKeys:
         for bunker in board.bunkers:
             bunker.delete()
         board.bunkers.clear()
         for i in range(3):
-            board.bunkers.append(Bunker(board, 75 + 242.5 * i,
-                                        500, 200 + 242.5 * i, 550, 300))
+            board.bunkers.append(
+                Bunker(board, 75 + 242.5 * i, 500, 200 + 242.5 * i, 550, 300)
+            )
 
-    # If 'M', 'L', 'P'  are pressed, enable passing laser
-    elif 'M' in board.pressedKeys and 'L' in board.pressedKeys and 'P' in board.pressedKeys:
+    # Enable passing laser if 'M', 'L', and 'P' are pressed together
+    elif ('M' in board.pressedKeys and
+          'L' in board.pressedKeys and
+          'P' in board.pressedKeys):
         board.passingLaser = True
 
-    # If 'i' and 'l' are pressed, increase life
+    # Increase life if 'i' and 'l' are pressed together
     elif 'i' in board.pressedKeys and 'l' in board.pressedKeys:
         board.increaseLife()
 
-    # Move cannon left if the left key is pressed and within bounds
+    # Move cannon left if the left key is pressed and it is within bounds
     elif event.keysym == board.selectedKeys[0] and posCannon[0] > 5:
         board.cannonMoveLeft = True
 
-    # Move cannon right if the right key is pressed and within bounds
-    elif (event.keysym == board.selectedKeys[1]
-          and posCannon[2] < Constants.WIDTH - 5):
+    # Move cannon right if the right key is pressed and it is within bounds
+    elif (event.keysym == board.selectedKeys[1] and
+          posCannon[2] < Constants.WIDTH - 5):
         board.cannonMoveRight = True
 
-    # Fire laser if the fire key is pressed and attack is not active
+    # Fire laser if the fire key is pressed and no current attack is active
     elif event.keysym == board.selectedKeys[2] and not board.attack:
         board.attack = True
-        posCannon = board.cannon.getBbox()  # Get cannon's position
-        board.laser.reset(posCannon[0]+23, posCannon[1]+7,
-                          posCannon[2]-23, posCannon[3]-7)  # Position laser at cannon
+        posCannon = board.cannon.getBbox()  # Get cannon's current position
+        board.laser.reset(
+            posCannon[0] + 23, posCannon[1] + 7,
+            posCannon[2] - 23, posCannon[3] - 7
+        )  # Position laser at the cannon
         board.laser.state("normal")  # Make the laser visible
-        board.fire()
+        board.fire()  # Fire the laser
 
-    # Open menu if 'm' is pressed
-    elif event.keysym == 'm':
+    # Open the menu if 'm' is pressed and no menu is currently open
+    elif event.keysym == 'm' and not board.menuOn:
         board.menuOn = True
         board.cannonMoveLeft = False
         board.cannonMoveRight = False
 
-    # Open fake working image for debug purposes
-    elif event.keysym in ('Escape', "B"):
+    # Debug: Show fake working image if 'Escape' or 'B' is pressed
+    elif event.keysym in ('Escape', 'B'):
         board.menuOn = True
         showFakeWorkingImage()
 
@@ -1057,15 +1194,18 @@ def keyPressed(event):
 def keyReleased(event):
     """
     Handles key release events to stop cannon movement.
+
+    This function ensures the cannon stops moving in the direction
+    of the released key.
     """
     global board
     board.pressedKeys.discard(event.keysym)
 
-    # Stop moving left when left key is released
+    # Stop moving left when the left key is released
     if event.keysym == board.selectedKeys[0]:
         board.cannonMoveLeft = False
 
-    # Stop moving right when right key is released
+    # Stop moving right when the right key is released
     elif event.keysym == board.selectedKeys[1]:
         board.cannonMoveRight = False
 
@@ -1128,14 +1268,14 @@ def openPopup():
 
     # Add label and entry for the user's name
     nameLabel = Label(initWin, text="Enter your name:",
-                       font='Helvetica 18 bold')
+                      font='Helvetica 18 bold')
     nameEntry = ttk.Entry(initWin)
     nameLabel.grid(row=0, column=0, padx=(20, 10), pady=(20, 20))
     nameEntry.grid(row=0, column=1, padx=10, pady=(20, 20), sticky="W")
 
     # Add radio buttons for control key options
     keyOption = Label(initWin, text="Choose control keys:",
-                       font='Helvetica 18 bold')
+                      font='Helvetica 18 bold')
     keyOption.grid(row=1, column=0, padx=(20, 3), pady=(0, 3))
 
     # Default key setting
@@ -1173,45 +1313,16 @@ def openPopup():
         """
         playerName = nameEntry.get()
         if not playerName.strip():  # Check if name is empty
-            missingName = Toplevel(initWin)
-            ws = missingName.winfo_screenwidth()
-            hs = missingName.winfo_screenheight()
-            x = (ws / 2) - (400 / 2)
-            y = (hs / 2) - (100 / 2)
-            missingName.geometry(f"{400}x{100}+{int(x)}+{int(y)}")
-            missingName.tk.call("tk", "scaling", 4.0)
-            missingName.resizable(False, False)
-            missingName.title("Name")
-            t = ttk.Label(missingName, text="You need to enter your NAME",
-                          font='Mistral 18 bold')
-            t.pack(pady=35, anchor="center")
+            messagebox.showinfo("Name not entered",
+                                "You need to enter your NAME")
         elif os.path.isfile(f"{playerName}.txt"):
-            nameExist = Toplevel(initWin)
-            ws = nameExist.winfo_screenwidth()
-            hs = nameExist.winfo_screenheight()
-            x = (ws / 2) - (500 / 2)
-            y = (hs / 2) - (100 / 2)
-            nameExist.geometry(f"{500}x{100}+{int(x)}+{int(y)}")
-            nameExist.tk.call("tk", "scaling", 4.0)
-            nameExist.resizable(False, False)
-            nameExist.title("Name")
-            t1 = ttk.Label(nameExist,
-                          text="The name already exists.",
-                          font='Mistral 17 bold')
-            t2 = ttk.Label(nameExist,
-                           text="Please enter a different name or load the saved file to play",
-                           font='Mistral 17 bold')
-            t1.pack(pady=10, anchor="center")
-            t2.pack(pady=10, anchor="center")
+            messagebox.showinfo("Name exists", "The name already exists.\n" +
+                                "Please enter a different name or " +
+                                "load the saved file to play")
         else:
             # Retrieve the selected values
             selectedKeys = movementKeys.get()
             gameLevel = level.get()
-
-            # Debugging outputs
-            print(f"Player Name: {playerName}")
-            print(f"Selected Keys: {selectedKeys}")
-            print(f"Game Level: {gameLevel}")
 
             # Close the sign-in window and start the game
             initWin.destroy()
@@ -1219,7 +1330,7 @@ def openPopup():
             startGame(playerName, selectedKeys, gameLevel)
 
     # Create and place the submit button
-    submitButton = Button(initWin, text="Start a new game", 
+    submitButton = Button(initWin, text="Start a new game",
                           command=submit, font='Helvetica 16 bold')
     submitButton.grid(row=6, column=1, padx=3, pady=3)
 
@@ -1269,14 +1380,15 @@ def openPopup():
             initWin.destroy()
             window.deiconify()
             startGame(playerName, selectedKeys, gameLevel,
-                       round, score, lives, alienCnt, aliensPos,
-                       bunkersCnt, cannonPos)
+                      round, score, lives, alienCnt, aliensPos,
+                      bunkersCnt, cannonPos)
 
     # Create and place the load button
     loadButton = Button(initWin, text="Load saved file", command=load)
     loadButton.grid(row=8, column=0, padx=(20, 0), pady=(10, 0))
 
     initWin.mainloop()
+
 
 def startGame(playerName, selectedKeys, gameLevel, *args):
     """
@@ -1300,13 +1412,14 @@ def startGame(playerName, selectedKeys, gameLevel, *args):
 
     # Start the game with player details
     if len(args) == 0:
-        board = gameBoard(window, playerName, selectedKeys, gameLevel)
+        board = GameBoard(window, playerName, selectedKeys, gameLevel)
     else:
-        board = gameBoard(window, playerName, selectedKeys, gameLevel, *args)
+        board = GameBoard(window, playerName, selectedKeys, gameLevel, *args)
 
     # Bind keys for controlling the game
     window.bind("<KeyPress>", keyPressed)
     window.bind("<KeyRelease>", keyReleased)
+
 
 # Initialize main Tkinter window
 window = Tk()
