@@ -1,4 +1,14 @@
-# Space Invaders
+"""
+Space Invaders Game
+====================
+
+A simple arcade-style game inspired by the classic "Space Invaders,"
+built using Python and Tkinter. The player controls a cannon to shoot
+alien invaders while avoiding enemy projectiles.
+
+Created by: Hyowon Ahn
+Date: November 22, 2024
+"""
 
 from tkinter import (Tk, Canvas, Label, Toplevel, ttk,
                      Radiobutton, StringVar, Button,
