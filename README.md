@@ -23,7 +23,8 @@ Here are some screenshots of the game:
 
 ### Start Menu
 
-![Start Menu Screenshot](start_menu_preview.png)
+<img src="start_menu_preview.png" alt="Gameplay Screenshot" width="500"/>
+
 
 ### Gameplay Screen
 
